@@ -11,7 +11,7 @@ struct ContentView: View {
     @StateObject private var deviceManager = DeviceManager.shared
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 if deviceManager.connectedDevices.isEmpty {
                     ContentUnavailableView {
@@ -43,6 +43,7 @@ struct ContentView: View {
                 deviceManager.loadDevices()
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 
