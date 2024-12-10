@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 /// HTTP文件上传管理器
 class HTTPFileUploader {
@@ -11,155 +10,119 @@ class HTTPFileUploader {
     /// 上传完成回调
     var completionHandler: ((Result<Void, Error>) -> Void)?
     
-    /// 分片大小(1MB)
-    private let chunkSize = 1024 * 1024
-    /// 当前上传任务
-    private var currentTask: URLSessionDataTask?
-    
     private init() {}
     
     /// 上传文件
     /// - Parameters:
     ///   - fileURL: 文件URL
-    ///   - ipAddress: 打印机IP地址
+    ///   - device: 打印机设备
     ///   - progress: 进度回调
     ///   - completion: 完成回调
-    func uploadFile(at fileURL: URL, to ipAddress: String,
+    func uploadFile(_ fileURL: URL, to device: PrinterDevice, 
                    progress: @escaping (Double) -> Void,
                    completion: @escaping (Result<Void, Error>) -> Void) {
-        progressHandler = progress
-        completionHandler = completion
         
-        // 读取文件数据
         guard let fileData = try? Data(contentsOf: fileURL) else {
-            completion(.failure(NetworkError.invalidData))
+            completion(.failure(NetworkError.uploadFailed("文件读取失败")))
             return
         }
         
-        // 计算SHA256
-        let hash = fileData.sha256String
-        
-        // 分片上传
-        let totalChunks = Int(ceil(Double(fileData.count) / Double(chunkSize)))
-        uploadChunk(fileData: fileData, hash: hash, currentChunk: 0, totalChunks: totalChunks, ipAddress: ipAddress)
-    }
-    
-    /// 取消上传
-    func cancelUpload() {
-        currentTask?.cancel()
-        currentTask = nil
-    }
-    
-    /// 上传分片
-    private func uploadChunk(fileData: Data, hash: String, currentChunk: Int, totalChunks: Int, ipAddress: String) {
-        // 计算当前分片范围
-        let start = currentChunk * chunkSize
-        let end = min(start + chunkSize, fileData.count)
-        let chunkData = fileData.subdata(in: start..<end)
-        
-        // 创建请求
-        let url = URL(string: "http://\(ipAddress):3030/uploadFile/upload")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        
-        // 生成分片UUID
+        let md5 = fileData.md5String
         let uuid = UUID().uuidString
+        let chunkSize = 1024 * 1024 // 1MB
+        let totalSize = fileData.count
         
-        // 创建multipart表单数据
-        let boundary = "Boundary-\(UUID().uuidString)"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        var currentOffset = 0
         
-        var body = Data()
-        
-        // 添加哈希值
-        body.append("--\(boundary)\r\n")
-        body.append("Content-Disposition: form-data; name=\"S-File-Hash\"\r\n\r\n")
-        body.append("\(hash)\r\n")
-        
-        // 添加校验标志
-        body.append("--\(boundary)\r\n")
-        body.append("Content-Disposition: form-data; name=\"Check\"\r\n\r\n")
-        body.append("1\r\n")
-        
-        // 添加偏移量
-        body.append("--\(boundary)\r\n")
-        body.append("Content-Disposition: form-data; name=\"Offset\"\r\n\r\n")
-        body.append("\(start)\r\n")
-        
-        // 添加UUID
-        body.append("--\(boundary)\r\n")
-        body.append("Content-Disposition: form-data; name=\"Uuid\"\r\n\r\n")
-        body.append("\(uuid)\r\n")
-        
-        // 添加总大小
-        body.append("--\(boundary)\r\n")
-        body.append("Content-Disposition: form-data; name=\"TotalSize\"\r\n\r\n")
-        body.append("\(fileData.count)\r\n")
-        
-        // 添加文件数据
-        body.append("--\(boundary)\r\n")
-        body.append("Content-Disposition: form-data; name=\"File\"; filename=\"chunk\"\r\n")
-        body.append("Content-Type: application/octet-stream\r\n\r\n")
-        body.append(chunkData)
-        body.append("\r\n")
-        
-        // 结束标记
-        body.append("--\(boundary)--\r\n")
-        
-        request.httpBody = body
-        
-        // 发送请求
-        currentTask = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            if let error = error {
-                self?.completionHandler?(.failure(error))
+        func uploadNextChunk() {
+            let remainingSize = totalSize - currentOffset
+            let currentChunkSize = min(chunkSize, remainingSize)
+            let chunk = fileData[currentOffset..<(currentOffset + currentChunkSize)]
+            
+            guard let url = URL(string: "http://\(device.ipAddress):3030/uploadFile/upload") else {
+                completion(.failure(NetworkError.invalidURL))
                 return
             }
             
-            guard let httpResponse = response as? HTTPURLResponse else {
-                self?.completionHandler?(.failure(NetworkError.invalidResponse))
-                return
-            }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
             
-            // 检查响应状态
-            guard httpResponse.statusCode == 200,
-                  let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let success = json["success"] as? Bool,
-                  success else {
-                self?.completionHandler?(.failure(NetworkError.invalidResponse))
-                return
-            }
+            let boundary = UUID().uuidString
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.setValue(md5, forHTTPHeaderField: "S-File-MD5")
+            request.setValue("1", forHTTPHeaderField: "Check")
+            request.setValue("\(currentOffset)", forHTTPHeaderField: "Offset")
+            request.setValue(uuid, forHTTPHeaderField: "Uuid")
+            request.setValue("\(totalSize)", forHTTPHeaderField: "TotalSize")
             
-            // 计算进度
-            let progress = Double(currentChunk + 1) / Double(totalChunks)
-            DispatchQueue.main.async {
-                self?.progressHandler?(progress)
-            }
+            var body = Data()
+            // Add file data
+            body.append("--\(boundary)\r\n")
+            body.append("Content-Disposition: form-data; name=\"File\"; filename=\"\(fileURL.lastPathComponent)\"\r\n")
+            body.append("Content-Type: application/octet-stream\r\n\r\n")
+            body.append(chunk)
+            body.append("\r\n")
+            body.append("--\(boundary)--\r\n")
             
-            // 检查是否还有下一个分片
-            if currentChunk + 1 < totalChunks {
-                self?.uploadChunk(fileData: fileData,
-                                hash: hash,
-                                currentChunk: currentChunk + 1,
-                                totalChunks: totalChunks,
-                                ipAddress: ipAddress)
-            } else {
-                self?.completionHandler?(.success(()))
+            request.httpBody = body
+            
+            let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    completion(.failure(NetworkError.connectionFailed(error.localizedDescription)))
+                    return
+                }
+                
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode) else {
+                    completion(.failure(NetworkError.invalidResponse))
+                    return
+                }
+                
+                // 解析SDCP响应
+                if let data = data,
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    
+                    if let code = json["code"] as? String {
+                        if code == "000000" {
+                            currentOffset += currentChunkSize
+                            let progressValue = Double(currentOffset) / Double(totalSize)
+                            DispatchQueue.main.async {
+                                progress(progressValue)
+                            }
+                            
+                            if currentOffset < totalSize {
+                                uploadNextChunk()
+                            } else {
+                                completion(.success(()))
+                            }
+                        } else {
+                            // 处理SDCP错误
+                            if let messages = json["messages"] as? [[String: Any]],
+                               let firstError = messages.first,
+                               let field = firstError["field"] as? String,
+                               let message = firstError["message"] {
+                                let errorMessage = "\(field): \(message)"
+                                completion(.failure(NetworkError.uploadFailed(errorMessage)))
+                            } else {
+                                completion(.failure(NetworkError.uploadFailed("未知错误: \(code)")))
+                            }
+                        }
+                    } else {
+                        completion(.failure(NetworkError.invalidData))
+                    }
+                } else {
+                    completion(.failure(NetworkError.invalidData))
+                }
             }
+            task.resume()
         }
         
-        currentTask?.resume()
+        uploadNextChunk()
     }
 }
 
 // MARK: - Data 扩展
 extension Data {
-    /// 计算SHA256哈希值
-    var sha256String: String {
-        let hash = SHA256.hash(data: self)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
-    }
-    
     /// 添加字符串
     mutating func append(_ string: String) {
         if let data = string.data(using: .utf8) {

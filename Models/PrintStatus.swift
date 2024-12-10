@@ -1,172 +1,157 @@
 import Foundation
 
-/// 打印机状态模型
-struct PrintStatus {
-    /// 当前机器状态
-    var currentStatus: [MachineStatus]
-    /// 上一次机器状态
-    var previousStatus: MachineStatus
-    /// 曝光屏使用时间(秒)
-    var printScreenTime: Int
-    /// 离型膜次数
-    var releaseFilmCount: Int
-    /// 当前UVLED温度(℃)
-    var uvledTemperature: Double
-    /// 延时摄影开关状态
-    var timeLapseEnabled: Bool
-    /// 箱体当前温度(℃)
-    var boxTemperature: Double
-    /// 箱体目标温度(℃)
-    var boxTargetTemperature: Double
-    /// 打印信息
-    var printInfo: PrintInfo?
-    
-    /// 机器状态枚举
-    enum MachineStatus: Int, CustomStringConvertible {
-        case idle = 0
-        case printing = 1
-        case fileTransferring = 2
-        case exposureTesting = 3
-        case devicesTesting = 4
+/// 打印机状态
+struct PrintStatus: Codable, Equatable {
+    /// 机器状态
+    enum MachineStatus: Int, Codable {
+        case idle = 0          // 空闲
+        case printing = 1      // 打印中
+        case fileTransferring = 2  // 文件传输中
+        case exposureTesting = 3   // 曝光测试
+        case devicesTesting = 4    // 设备自检
         
         var description: String {
             switch self {
-            case .idle:
-                return "空闲"
-            case .printing:
-                return "打印中"
-            case .fileTransferring:
-                return "文件传输中"
-            case .exposureTesting:
-                return "曝光测试中"
-            case .devicesTesting:
-                return "设备自检中"
+            case .idle: return "空闲"
+            case .printing: return "打印中"
+            case .fileTransferring: return "文件传输中"
+            case .exposureTesting: return "曝光测试"
+            case .devicesTesting: return "设备自检"
             }
         }
     }
     
-    /// 打印子状态枚举
-    enum PrintSubStatus: Int, CustomStringConvertible {
-        case idle = 0
-        case homing = 1
-        case dropping = 2
-        case exposuring = 3
-        case lifting = 4
-        case pausing = 5
-        case paused = 6
-        case stopping = 7
-        case stopped = 8
-        case complete = 9
-        case fileChecking = 10
-        
-        var description: String {
-            switch self {
-            case .idle:
-                return "空闲"
-            case .homing:
-                return "回零中"
-            case .dropping:
-                return "下降中"
-            case .exposuring:
-                return "曝光中"
-            case .lifting:
-                return "抬升中"
-            case .pausing:
-                return "暂停中"
-            case .paused:
-                return "已暂停"
-            case .stopping:
-                return "停止中"
-            case .stopped:
-                return "已停止"
-            case .complete:
-                return "已完成"
-            case .fileChecking:
-                return "文件检查中"
-            }
-        }
-    }
-}
-
-/// 打印信息
-struct PrintInfo {
     /// 打印子状态
-    var status: PrintStatus.PrintSubStatus
-    /// 当前打印层数
-    var currentLayer: Int
-    /// 打印任务总层数
-    var totalLayer: Int
-    /// 当前已打印时间(ms)
-    var currentTicks: Int
-    /// 总打印时间(ms)
-    var totalTicks: Int
-    /// 打印文件名称
-    var filename: String
-    /// 错误码
-    var errorNumber: Int
-    /// 当前任务ID
-    var taskId: String
-    
-    /// 计算打印进度
-    var progress: Double {
-        guard totalLayer > 0 else { return 0 }
-        return Double(currentLayer) / Double(totalLayer)
+    enum PrintSubStatus: Int, Codable {
+        case idle = 0          // 空闲
+        case homing = 1        // 归零中
+        case dropping = 2      // 下降中
+        case exposuring = 3    // 曝光中
+        case lifting = 4       // 抬升中
+        case pausing = 5       // 正在执行暂停动作中
+        case paused = 6        // 已暂停
+        case stopping = 7      // 正在执行停止动作中
+        case stopped = 8       // 已停止
+        case complete = 9      // 打印完成
+        case fileChecking = 10 // 文件检测中
+        
+        var description: String {
+            switch self {
+            case .idle: return "空闲"
+            case .homing: return "归零中"
+            case .dropping: return "下降中"
+            case .exposuring: return "曝光中"
+            case .lifting: return "抬升中"
+            case .pausing: return "暂停中"
+            case .paused: return "已暂停"
+            case .stopping: return "停止中"
+            case .stopped: return "已停止"
+            case .complete: return "已完成"
+            case .fileChecking: return "文件检测中"
+            }
+        }
     }
     
-    /// 格式化已打印时间
-    var formattedCurrentTime: String {
-        formatTime(milliseconds: currentTicks)
+    /// 当前机器状态
+    let currentStatus: MachineStatus
+    /// 前一个状态
+    let previousStatus: MachineStatus
+    /// 曝光时间(ms)
+    let printScreenTime: Int
+    /// 离型次数
+    let releaseFilmCount: Int
+    /// UVLED温度
+    let uvledTemperature: Double
+    /// 延时摄影启用状态
+    let timeLapseEnabled: Bool
+    /// 打印仓温度
+    let boxTemperature: Double
+    /// 打印仓目标温度
+    let boxTargetTemperature: Double
+    /// 打印信息
+    let printInfo: PrintInfo?
+    
+    private enum CodingKeys: String, CodingKey {
+        case status = "Status"
+        case currentStatus = "CurrentStatus"
+        case previousStatus = "PreviousStatus"
+        case printScreenTime = "PrintScreen"
+        case releaseFilmCount = "ReleaseFilm"
+        case uvledTemperature = "TempOfUVLED"
+        case timeLapseEnabled = "TimeLapseStatus"
+        case boxTemperature = "TempOfBox"
+        case boxTargetTemperature = "TempTargetBox"
+        case printInfo = "PrintInfo"
     }
     
-    /// 格式化总时间
-    var formattedTotalTime: String {
-        formatTime(milliseconds: totalTicks)
+    // MARK: - Encodable
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encode(currentStatus.rawValue, forKey: .currentStatus)
+        try container.encode(previousStatus.rawValue, forKey: .previousStatus)
+        try container.encode(printScreenTime, forKey: .printScreenTime)
+        try container.encode(releaseFilmCount, forKey: .releaseFilmCount)
+        try container.encode(uvledTemperature, forKey: .uvledTemperature)
+        try container.encode(timeLapseEnabled ? 1 : 0, forKey: .timeLapseEnabled)
+        try container.encode(boxTemperature, forKey: .boxTemperature)
+        try container.encode(boxTargetTemperature, forKey: .boxTargetTemperature)
+        try container.encodeIfPresent(printInfo, forKey: .printInfo)
     }
     
-    /// 将毫秒转换为时分秒格式
-    private func formatTime(milliseconds: Int) -> String {
-        let seconds = milliseconds / 1000
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let remainingSeconds = seconds % 60
-        return String(format: "%02d:%02d:%02d", hours, minutes, remainingSeconds)
+    // MARK: - Decodable
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // 解析当前状态（可能是数组或单个值）
+        if let statusArray = try? container.decode([Int].self, forKey: .currentStatus) {
+            currentStatus = MachineStatus(rawValue: statusArray[0]) ?? .idle
+        } else if let statusValue = try? container.decode(Int.self, forKey: .currentStatus) {
+            currentStatus = MachineStatus(rawValue: statusValue) ?? .idle
+        } else {
+            currentStatus = .idle
+        }
+        
+        previousStatus = try container.decode(MachineStatus.self, forKey: .previousStatus)
+        printScreenTime = try container.decode(Int.self, forKey: .printScreenTime)
+        releaseFilmCount = try container.decode(Int.self, forKey: .releaseFilmCount)
+        uvledTemperature = try container.decode(Double.self, forKey: .uvledTemperature)
+        timeLapseEnabled = try container.decode(Int.self, forKey: .timeLapseEnabled) == 1
+        boxTemperature = try container.decode(Double.self, forKey: .boxTemperature)
+        boxTargetTemperature = try container.decode(Double.self, forKey: .boxTargetTemperature)
+        printInfo = try container.decodeIfPresent(PrintInfo.self, forKey: .printInfo)
+    }
+    
+    // MARK: - 初始化方法
+    
+    init(currentStatus: MachineStatus,
+         previousStatus: MachineStatus,
+         printScreenTime: Int,
+         releaseFilmCount: Int,
+         uvledTemperature: Double,
+         timeLapseEnabled: Bool,
+         boxTemperature: Double,
+         boxTargetTemperature: Double,
+         printInfo: PrintInfo?) {
+        self.currentStatus = currentStatus
+        self.previousStatus = previousStatus
+        self.printScreenTime = printScreenTime
+        self.releaseFilmCount = releaseFilmCount
+        self.uvledTemperature = uvledTemperature
+        self.timeLapseEnabled = timeLapseEnabled
+        self.boxTemperature = boxTemperature
+        self.boxTargetTemperature = boxTargetTemperature
+        self.printInfo = printInfo
     }
 }
 
-// MARK: - JSON解析扩展
+// MARK: - 辅助方法
 extension PrintStatus {
-    /// 从JSON数据创建打印状态实例
-    static func from(_ json: [String: Any]) -> PrintStatus? {
-        guard let status = json["Status"] as? [String: Any] else { return nil }
-        
-        let currentStatusArray = status["CurrentStatus"] as? [Int] ?? []
-        let currentStatus = currentStatusArray.compactMap { MachineStatus(rawValue: $0) }
-        let previousStatus = MachineStatus(rawValue: status["PreviousStatus"] as? Int ?? 0) ?? .idle
-        
-        var printInfo: PrintInfo?
-        if let printInfoDict = status["PrintInfo"] as? [String: Any] {
-            printInfo = PrintInfo(
-                status: PrintSubStatus(rawValue: printInfoDict["Status"] as? Int ?? 0) ?? .idle,
-                currentLayer: printInfoDict["CurrentLayer"] as? Int ?? 0,
-                totalLayer: printInfoDict["TotalLayer"] as? Int ?? 0,
-                currentTicks: printInfoDict["CurrentTicks"] as? Int ?? 0,
-                totalTicks: printInfoDict["TotalTicks"] as? Int ?? 0,
-                filename: printInfoDict["Filename"] as? String ?? "",
-                errorNumber: printInfoDict["ErrorNumber"] as? Int ?? 0,
-                taskId: printInfoDict["TaskId"] as? String ?? ""
-            )
-        }
-        
-        return PrintStatus(
-            currentStatus: currentStatus,
-            previousStatus: previousStatus,
-            printScreenTime: status["PrintScreen"] as? Int ?? 0,
-            releaseFilmCount: status["ReleaseFilm"] as? Int ?? 0,
-            uvledTemperature: status["TempOfUVLED"] as? Double ?? 0,
-            timeLapseEnabled: (status["TimeLapseStatus"] as? Int ?? 0) == 1,
-            boxTemperature: status["TempOfBox"] as? Double ?? 0,
-            boxTargetTemperature: status["TempTargetBox"] as? Double ?? 0,
-            printInfo: printInfo
-        )
-    }
+    var isIdle: Bool { currentStatus == .idle }
+    var isPrinting: Bool { currentStatus == .printing }
+    var isFileTransferring: Bool { currentStatus == .fileTransferring }
+    var isExposureTesting: Bool { currentStatus == .exposureTesting }
+    var isDevicesTesting: Bool { currentStatus == .devicesTesting }
 } 

@@ -3,23 +3,32 @@ import SwiftUI
 struct DeviceScanView: View {
     @StateObject private var discoveryManager = UDPDiscoveryManager.shared
     @StateObject private var deviceManager = DeviceManager.shared
+    @StateObject private var webSocketManager = WebSocketManager.shared
     @Environment(\.dismiss) private var dismiss
+    
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var connectingDevice: PrinterDevice?
+    @State private var isScanning = false
+    
+    private var availableDevices: [PrinterDevice] {
+        discoveryManager.discoveredDevices.filter { device in
+            !deviceManager.connectedDevices.contains(device)
+        }
+    }
     
     var body: some View {
         List {
-            if discoveryManager.isScanning {
+            if isScanning {
                 HStack {
                     ProgressView()
                         .controlSize(.small)
                     Text("正在扫描设备...")
                         .foregroundColor(.secondary)
                 }
-            } else if discoveryManager.discoveredDevices.isEmpty {
+            } else if availableDevices.isEmpty {
                 ContentUnavailableView {
-                    Label("未发现设备", systemImage: "printer.fill")
+                    Label("未发现可用设备", systemImage: "printer.fill")
                 } description: {
                     Text("请确保设备已开机并在同一网络中")
                 } actions: {
@@ -29,7 +38,7 @@ struct DeviceScanView: View {
                     .buttonStyle(.bordered)
                 }
             } else {
-                ForEach(discoveryManager.discoveredDevices) { device in
+                ForEach(availableDevices) { device in
                     DeviceListItemWithConnection(
                         device: device,
                         isConnecting: connectingDevice == device,
@@ -46,7 +55,7 @@ struct DeviceScanView: View {
                 Button(action: startScanning) {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
-                .disabled(discoveryManager.isScanning || connectingDevice != nil)
+                .disabled(isScanning || connectingDevice != nil)
             }
         }
         .alert("错误", isPresented: $showingError) {
@@ -57,20 +66,47 @@ struct DeviceScanView: View {
         .onAppear {
             startScanning()
         }
+        .onDisappear {
+            stopScanning()
+        }
     }
     
     private func startScanning() {
-        discoveryManager.startDiscovery(excludingDevices: deviceManager.connectedDevices)
+        isScanning = true
+        discoveryManager.startDiscovery {
+            DispatchQueue.main.async {
+                isScanning = false
+            }
+        }
+    }
+    
+    private func stopScanning() {
+        discoveryManager.stopDiscovery()
+        isScanning = false
+    }
+    
+    private func showError(_ message: String) {
+        errorMessage = message
+        showingError = true
     }
     
     private func connectDevice(_ device: PrinterDevice) {
         connectingDevice = device
         
-        // 模拟连接延迟
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            deviceManager.connectDevice(device)
-            connectingDevice = nil
-            dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            webSocketManager.connect(to: device) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success:
+                        deviceManager.connectDevice(device)
+                        connectingDevice = nil
+                        dismiss()
+                    case .failure(let error):
+                        showError(error.localizedDescription)
+                        connectingDevice = nil
+                    }
+                }
+            }
         }
     }
 }

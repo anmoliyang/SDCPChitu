@@ -11,45 +11,82 @@ struct ContentView: View {
     @StateObject private var deviceManager = DeviceManager.shared
     
     var body: some View {
-        NavigationStack {
-            List {
+        NavigationView {
+            Group {
                 if deviceManager.connectedDevices.isEmpty {
-                    ContentUnavailableView {
-                        Label("未连接设备", systemImage: "printer.fill")
-                    } description: {
-                        Text("点击右上角扫描按钮添加设备")
-                    }
-                } else {
-                    ForEach(deviceManager.connectedDevices) { device in
+                    // 空状态视图
+                    VStack(spacing: 20) {
+                        Spacer()
+                            .frame(height: 80)
+                        
+                        Image("empty_printer")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 250, height: 250)
+                        
+                        VStack(spacing: 10) {
+                            Text("添加一台设备")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.black)
+                            
+                            Text("开启你的3D打印之旅")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                        .padding(.top, 50)
+                        
+                        Spacer()
+                        
+                        // 搜索设备按钮 - 改为导航链接
                         NavigationLink {
-                            DeviceDetailView(device: device)
+                            DeviceScanView()
                         } label: {
-                            DeviceListItem(device: device)
+                            HStack(alignment: .center, spacing: 5) {
+                                Image(systemName: "plus")
+                                    .frame(width: 18, height: 18)
+                                Text("搜索设备")
+                                    .font(.headline)
+                            }
+                            .padding(.horizontal, 50)
+                            .padding(.vertical, 20)
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 40, 400), alignment: .center)
+                            .background(.black)
+                            .foregroundColor(.white)
+                            .cornerRadius(100)
                         }
                     }
+                    .padding(.bottom, 20)
+                    .padding(.horizontal, 20)
+                } else {
+                    // 设备列表
+                    List {
+                        ForEach(deviceManager.connectedDevices) { device in
+                            NavigationLink {
+                                DeviceDetailView(device: device)
+                            } label: {
+                                DeviceListItem(device: device)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("我的设备")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                if !deviceManager.connectedDevices.isEmpty {
                     NavigationLink {
                         DeviceScanView()
                     } label: {
-                        Label("扫描", systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                 }
             }
-            .onAppear {
-                deviceManager.loadDevices()
-            }
         }
-        .navigationViewStyle(.stack)
     }
 }
 
 struct DeviceListItem: View {
     let device: PrinterDevice
-    @ObservedObject private var deviceManager = DeviceManager.shared
+    @StateObject private var deviceManager = DeviceManager.shared
     
     var body: some View {
         HStack {
@@ -64,34 +101,10 @@ struct DeviceListItem: View {
             Spacer()
             
             // 连接状态指示器
-            if deviceManager.isDeviceConnected(device) {
+            if deviceManager.connectedDevices.contains(device) {
                 Image(systemName: "link.circle.fill")
                     .foregroundColor(.green)
             }
-        }
-    }
-}
-
-struct StatusIndicator: View {
-    let status: DeviceStatus
-    
-    var body: some View {
-        Circle()
-            .fill(statusColor)
-            .frame(width: 12, height: 12)
-    }
-    
-    private var statusColor: Color {
-        if status.uvledTempSensorStatus == 1 &&
-           status.lcdStatus == 1 &&
-           status.zMotorStatus == 1 {
-            return .green
-        } else if status.uvledTempSensorStatus == 2 ||
-                  status.lcdStatus == 2 ||
-                  status.zMotorStatus == 2 {
-            return .red
-        } else {
-            return .yellow
         }
     }
 }

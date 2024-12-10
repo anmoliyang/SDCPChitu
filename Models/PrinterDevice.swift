@@ -2,20 +2,27 @@ import Foundation
 
 /// 设备状态
 struct DeviceStatus: Codable {
+    /// 设备状态值定义
+    enum Status: Int, Codable {
+        case normal = 0     // 正常
+        case abnormal = 1   // 异常
+        case unknown = 2    // 未知
+    }
+    
     /// UVLED温度传感器状态
-    let uvledTempSensorStatus: Int
+    let uvledTempSensorStatus: Status
     /// LCD屏状态
-    let lcdStatus: Int
+    let lcdStatus: Status
     /// 光栅状态
-    let sgStatus: Int
+    let sgStatus: Status
     /// Z轴电机状态
-    let zMotorStatus: Int
+    let zMotorStatus: Status
     /// 旋转电机状态
-    let rotateMotorStatus: Int
+    let rotateMotorStatus: Status
     /// 离型膜状态
-    let releaseFilmState: Int
+    let releaseFilmState: Status
     /// X轴电机状态
-    let xMotorStatus: Int
+    let xMotorStatus: Status
 }
 
 /// 网络状态
@@ -26,8 +33,11 @@ enum NetworkStatus: String, Codable {
 
 /// 设备能力
 enum DeviceCapability: String, Codable {
+    /// 文件传输
     case fileTransfer = "FileTransfer"
+    /// 打印控制
     case printControl = "PrintControl"
+    /// 视频流
     case videoStream = "VideoStream"
 }
 
@@ -83,14 +93,15 @@ struct PrinterDevice: Identifiable, Codable, Equatable {
         let networkStatus = NetworkStatus(rawValue: networkStatusStr) ?? .wlan
         let deviceCapabilities = capabilities.compactMap { DeviceCapability(rawValue: $0) }
         
+        // 将Int值转换为DeviceStatus.Status枚举
         let status = DeviceStatus(
-            uvledTempSensorStatus: devicesStatus["TempSensorStatusOfUVLED"] ?? 0,
-            lcdStatus: devicesStatus["LCDStatus"] ?? 0,
-            sgStatus: devicesStatus["SgStatus"] ?? 0,
-            zMotorStatus: devicesStatus["ZMotorStatus"] ?? 0,
-            rotateMotorStatus: devicesStatus["RotateMotorStatus"] ?? 0,
-            releaseFilmState: devicesStatus["RelaseFilmState"] ?? 0,
-            xMotorStatus: devicesStatus["XMotorStatus"] ?? 0
+            uvledTempSensorStatus: DeviceStatus.Status(rawValue: devicesStatus["TempSensorStatusOfUVLED"] ?? 2) ?? .unknown,
+            lcdStatus: DeviceStatus.Status(rawValue: devicesStatus["LCDStatus"] ?? 2) ?? .unknown,
+            sgStatus: DeviceStatus.Status(rawValue: devicesStatus["SgStatus"] ?? 2) ?? .unknown,
+            zMotorStatus: DeviceStatus.Status(rawValue: devicesStatus["ZMotorStatus"] ?? 2) ?? .unknown,
+            rotateMotorStatus: DeviceStatus.Status(rawValue: devicesStatus["RotateMotorStatus"] ?? 2) ?? .unknown,
+            releaseFilmState: DeviceStatus.Status(rawValue: devicesStatus["RelaseFilmState"] ?? 2) ?? .unknown,
+            xMotorStatus: DeviceStatus.Status(rawValue: devicesStatus["XMotorStatus"] ?? 2) ?? .unknown
         )
         
         return PrinterDevice(
@@ -120,77 +131,105 @@ extension PrinterDevice {
     /// 预览用的测试打印机
     static var preview: PrinterDevice {
         PrinterDevice(
-            id: "DEBUG_PRINTER_001",
-            name: "调试打印机",
-            machineName: "Debug Model X1",
-            brandName: "DebugBrand",
+            id: "SDCP_TEST_001",
+            name: "SDCP测试打印机",
+            machineName: "SDCP-X1",
+            brandName: "ChiTu",
             ipAddress: "192.168.1.100",
             protocolVersion: "3.0.0",
-            firmwareVersion: "1.0.0-debug",
+            firmwareVersion: "V3.0.0",
             resolution: "4096x2560",
             xyzSize: "192x120x200",
             networkStatus: .wlan,
             capabilities: Set([.fileTransfer, .printControl, .videoStream]),
             supportedFileTypes: ["ctb", "cbddlp", "photon"],
             deviceStatus: DeviceStatus(
-                uvledTempSensorStatus: 1,
-                lcdStatus: 1,
-                sgStatus: 1,
-                zMotorStatus: 1,
-                rotateMotorStatus: 1,
-                releaseFilmState: 1,
-                xMotorStatus: 1
+                uvledTempSensorStatus: .normal,
+                lcdStatus: .normal,
+                sgStatus: .normal,
+                zMotorStatus: .normal,
+                rotateMotorStatus: .normal,
+                releaseFilmState: .normal,
+                xMotorStatus: .normal
             )
         )
     }
     
-    /// 用于调试的打印机列表
+    /// 用于调试打印机列表
     static var debugDevices: [PrinterDevice] {
         [
+            // 正在打印的设备
             PrinterDevice(
-                id: "DEBUG_PRINTER_002",
-                name: "调试打印机 2",
-                machineName: "Debug Model X2",
-                brandName: "DebugBrand",
-                ipAddress: "192.168.1.102",
+                id: "SDCP_TEST_002",
+                name: "打印中设备",
+                machineName: "SDCP-X2 Pro",
+                brandName: "ChiTu",
+                ipAddress: "192.168.1.101",
                 protocolVersion: "3.0.0",
-                firmwareVersion: "1.0.0-debug",
+                firmwareVersion: "V3.0.0",
                 resolution: "5760x3600",
                 xyzSize: "192x120x200",
                 networkStatus: .ethernet,
-                capabilities: Set([.fileTransfer, .printControl]),
-                supportedFileTypes: ["ctb", "cbddlp"],
+                capabilities: Set([.fileTransfer, .printControl, .videoStream]),
+                supportedFileTypes: ["ctb", "cbddlp", "photon"],
                 deviceStatus: DeviceStatus(
-                    uvledTempSensorStatus: 2,  // 故障状态
-                    lcdStatus: 1,
-                    sgStatus: 1,
-                    zMotorStatus: 1,
-                    rotateMotorStatus: 1,
-                    releaseFilmState: 1,
-                    xMotorStatus: 1
+                    uvledTempSensorStatus: .normal,
+                    lcdStatus: .normal,
+                    sgStatus: .normal,
+                    zMotorStatus: .normal,
+                    rotateMotorStatus: .normal,
+                    releaseFilmState: .normal,
+                    xMotorStatus: .normal
                 )
             ),
+            
+            // 异常状态设备
             PrinterDevice(
-                id: "DEBUG_PRINTER_003",
-                name: "调试打印机 3",
-                machineName: "Debug Model X3",
-                brandName: "DebugBrand",
-                ipAddress: "192.168.1.103",
+                id: "SDCP_TEST_003",
+                name: "异常状态设备",
+                machineName: "SDCP-X3",
+                brandName: "ChiTu",
+                ipAddress: "192.168.1.102",
                 protocolVersion: "3.0.0",
-                firmwareVersion: "1.0.0-debug",
+                firmwareVersion: "V3.0.0",
                 resolution: "3840x2400",
                 xyzSize: "192x120x200",
                 networkStatus: .wlan,
-                capabilities: Set([.fileTransfer, .printControl, .videoStream]),
-                supportedFileTypes: ["ctb", "cbddlp"],
+                capabilities: Set([.fileTransfer, .printControl]),
+                supportedFileTypes: ["ctb"],
                 deviceStatus: DeviceStatus(
-                    uvledTempSensorStatus: 1,
-                    lcdStatus: 2,  // LCD故障
-                    sgStatus: 1,
-                    zMotorStatus: 1,
-                    rotateMotorStatus: 1,
-                    releaseFilmState: 1,
-                    xMotorStatus: 1
+                    uvledTempSensorStatus: .abnormal,  // UVLED温度传感器异常
+                    lcdStatus: .normal,
+                    sgStatus: .abnormal,  // 光栅异常
+                    zMotorStatus: .abnormal,  // Z轴电机异常
+                    rotateMotorStatus: .normal,
+                    releaseFilmState: .normal,
+                    xMotorStatus: .normal
+                )
+            ),
+            
+            // 离线设备
+            PrinterDevice(
+                id: "SDCP_TEST_004",
+                name: "离线设备",
+                machineName: "SDCP-X1 Lite",
+                brandName: "ChiTu",
+                ipAddress: "192.168.1.103",
+                protocolVersion: "3.0.0",
+                firmwareVersion: "V3.0.0",
+                resolution: "2560x1600",
+                xyzSize: "130x80x160",
+                networkStatus: .wlan,
+                capabilities: Set([.fileTransfer, .printControl]),
+                supportedFileTypes: ["ctb"],
+                deviceStatus: DeviceStatus(
+                    uvledTempSensorStatus: .unknown,
+                    lcdStatus: .unknown,
+                    sgStatus: .unknown,
+                    zMotorStatus: .unknown,
+                    rotateMotorStatus: .unknown,
+                    releaseFilmState: .unknown,
+                    xMotorStatus: .unknown
                 )
             )
         ]

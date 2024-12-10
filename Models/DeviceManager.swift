@@ -1,45 +1,33 @@
 import Foundation
+import Combine
 
 /// 设备管理器
 class DeviceManager: ObservableObject {
     static let shared = DeviceManager()
     
-    private let defaults = UserDefaults.standard
-    private let connectedDevicesKey = "ConnectedDevices"
+    @Published private(set) var connectedDevices: [PrinterDevice] = []
+    @Published private(set) var deviceStatuses: [String: PrintStatus] = [:]
     
-    private init() {}
+    private var cancellables = Set<AnyCancellable>()
     
-    /// 获取已连接的设备列表
-    @Published private(set) var connectedDevices: [PrinterDevice] = [] {
-        didSet {
-            if let data = try? JSONEncoder().encode(connectedDevices) {
-                defaults.set(data, forKey: connectedDevicesKey)
+    private init() {
+        // 监听设备状态更新
+        WebSocketManager.shared.statusPublisher
+            .sink { [weak self] status in
+                guard let deviceId = status.printInfo?.taskId else { return }
+                self?.deviceStatuses[deviceId] = status
             }
-        }
+            .store(in: &cancellables)
     }
     
-    /// 连接设备
     func connectDevice(_ device: PrinterDevice) {
-        if !connectedDevices.contains(where: { $0.id == device.id }) {
+        if !connectedDevices.contains(device) {
             connectedDevices.append(device)
         }
     }
     
-    /// 移除设备
-    func removeDevice(_ device: PrinterDevice) {
-        connectedDevices.removeAll(where: { $0.id == device.id })
-    }
-    
-    /// 检查设备是否已连接
-    func isDeviceConnected(_ device: PrinterDevice) -> Bool {
-        return connectedDevices.contains(where: { $0.id == device.id })
-    }
-    
-    /// 从持久化存储加载设备列表
-    func loadDevices() {
-        if let data = defaults.data(forKey: connectedDevicesKey),
-           let devices = try? JSONDecoder().decode([PrinterDevice].self, from: data) {
-            connectedDevices = devices
-        }
+    func disconnectDevice(_ device: PrinterDevice) {
+        connectedDevices.removeAll { $0.id == device.id }
+        deviceStatuses.removeValue(forKey: device.id)
     }
 } 

@@ -12,6 +12,12 @@ enum NetworkError: LocalizedError {
     case uploadFailed(String)
     /// 未知错误
     case unknown(Error)
+    /// 无效的设备地址
+    case invalidURL
+    /// 连接超时
+    case timeout
+    /// 连接已断开
+    case disconnected
     
     var errorDescription: String? {
         switch self {
@@ -25,6 +31,12 @@ enum NetworkError: LocalizedError {
             return "上传失败: \(message)"
         case .unknown(let error):
             return "未知错误: \(error.localizedDescription)"
+        case .invalidURL:
+            return "无效的设备地址"
+        case .timeout:
+            return "连接超时"
+        case .disconnected:
+            return "连接已断开"
         }
     }
 }
