@@ -33,10 +33,10 @@ struct DeviceScanView: View {
                                     .foregroundColor(.black)
                                 
                                 Text("请确保打印机处于同一局域网")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(Color.black.opacity(0.5))
                             }
-                            .padding(.top, 20)
+                            .padding(.top, 30)
                             
                             Spacer()
                             
@@ -94,34 +94,32 @@ struct DeviceScanView: View {
                 } else {
                     // 设备列表
                     ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if availableDevices.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "printer.fill")
-                                        .font(.largeTitle)
-                                        .foregroundColor(.gray)
-                                    Text("未发现可用设备")
-                                        .font(.headline)
-                                    Text("请确保设备已开机并在同一网络中")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(.vertical, 40)
-                            } else {
-                                VStack(spacing: 15) {
-                                    ForEach(Array(availableDevices.enumerated()), id: \.element.id) { index, device in
-                                        DeviceRow(
-                                            device: device,
-                                            isConnecting: connectingDevice == device,
-                                            isFirstItem: index == 0
-                                        )
-                                        .onTapGesture {
-                                            connectDevice(device)
-                                        }
+                        if availableDevices.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "printer.fill")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.gray)
+                                Text("未发现可用设备")
+                                    .font(.headline)
+                                Text("请确保设备已开机并在同一网络中")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.vertical, 40)
+                        } else {
+                            VStack(spacing: 15) {
+                                ForEach(Array(availableDevices.enumerated()), id: \.element.id) { index, device in
+                                    DeviceRow(
+                                        device: device,
+                                        isConnecting: connectingDevice == device,
+                                        isFirstItem: index == 0
+                                    )
+                                    .onTapGesture {
+                                        connectDevice(device)
                                     }
                                 }
-                                .padding(.top, 30)
                             }
+                            .padding(.top, 30)
                         }
                     }
                     
@@ -133,7 +131,7 @@ struct DeviceScanView: View {
                             Image(systemName: "arrow.clockwise")
                                 .frame(width: 18, height: 18)
                             Text("重新搜索")
-                                .font(.headline)
+                                .font(.system(size: 17, weight: .bold))
                         }
                         .padding(.horizontal, 50)
                         .padding(.vertical, 20)
@@ -220,26 +218,27 @@ struct DeviceRow: View {
     let isFirstItem: Bool
     
     var body: some View {
-        HStack {
+        HStack(spacing: 16) {
             // 设备图片
             Image("printer_thumbnail")
                 .resizable()
+                .aspectRatio(contentMode: .fit)
                 .frame(width: 70, height: 70)
-                .cornerRadius(8)
+                .foregroundColor(.black)
             
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(device.machineName)
-                        .font(.system(size: 20))
                     Text(device.brandName)
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.gray)
+                    Text(device.machineName)
+                        .font(.system(size: 20, weight: .bold))
                 }
                 
                 Spacer()
                 
                 Text("IP: \(device.ipAddress)")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
             }
             
@@ -251,7 +250,8 @@ struct DeviceRow: View {
                     .padding(.trailing, 20)
             }
         }
-        .padding(20)
+        .padding(.leading, 20)
+        .padding([.top, .bottom, .trailing], 20)
         .background(Color.white)
         .cornerRadius(15)
         .opacity(isConnecting ? 0.6 : 1.0)

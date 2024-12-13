@@ -30,7 +30,7 @@ class UDPDiscoveryManager: ObservableObject {
         
         #if DEBUG
         // 调试模式下添加测试设备
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             self?.discoveredDevices.append(PrinterDevice.preview)
             self?.discoveredDevices.append(contentsOf: PrinterDevice.debugDevices)
             self?.isScanning = false
