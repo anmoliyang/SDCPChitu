@@ -228,17 +228,18 @@ struct DeviceRow: View {
             
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 5) {
+                    Text(device.machineName)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.black)
                     Text(device.brandName)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.gray)
-                    Text(device.machineName)
-                        .font(.system(size: 20, weight: .bold))
                 }
                 
                 Spacer()
                 
                 Text("IP: \(device.ipAddress)")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12))
                     .foregroundColor(.gray)
             }
             
@@ -246,13 +247,20 @@ struct DeviceRow: View {
             
             if isConnecting {
                 ProgressView()
-                    .controlSize(.small)
+                    .controlSize(.regular)
                     .padding(.trailing, 20)
             }
         }
         .padding(.leading, 20)
         .padding([.top, .bottom, .trailing], 20)
-        .background(Color.white)
+        .background(
+            RoundedRectangle(cornerRadius: 15)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15)
+                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                )
+        )
         .cornerRadius(15)
         .opacity(isConnecting ? 0.6 : 1.0)
         .padding(.horizontal, 20)

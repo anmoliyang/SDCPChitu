@@ -102,24 +102,25 @@ struct ConnectedDeviceRow: View {
             // 设备图片
             Image("printer_thumbnail")
                 .resizable()
+                .aspectRatio(contentMode: .fit)
                 .frame(width: 70, height: 70)
-                .cornerRadius(8)
+                .foregroundColor(.black)
             
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(device.brandName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color.black.opacity(0.5))
                     Text(device.machineName)
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.black)
+                    Text(device.brandName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()
                 
                 Text("IP: \(device.ipAddress)")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color.black.opacity(0.5))
+                    .foregroundColor(.gray)
             }
             
             Spacer()
@@ -131,7 +132,14 @@ struct ConnectedDeviceRow: View {
         }
         .padding(.leading, 20)
         .padding([.top, .bottom, .trailing], 20)
-        .background(Color.white)
+        .background(
+            RoundedRectangle(cornerRadius: 15)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15)
+                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                )
+        )
         .cornerRadius(15)
     }
 }
