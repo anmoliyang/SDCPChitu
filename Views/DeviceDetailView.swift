@@ -10,60 +10,67 @@ struct DeviceDetailView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        List {
-            // 视频监控区域
-            if device.capabilities.contains(.videoStream) {
-                Section(header: Text("视频监控")) {
-                    VideoStreamView(device: device)
-                }
-            }
+        ZStack {
+            Color(red: 248/255, green: 248/255, blue: 248/255)
+                .ignoresSafeArea()
             
-            // 打印控制区域
-            Section(header: Text("打印控制")) {
-                PrintControlView(device: device)
-            }
-            
-            // 设备状态区域
-            Section(header: Text("设备状态")) {
-                DeviceComponentStatusView(deviceStatus: device.deviceStatus)
-                if let status = webSocketManager.currentStatus {
-                    DeviceTemperatureView(status: status)
-                }
-            }
-            
-            // 添加移除设备按钮
-            Section {
-                Button(action: {
-                    disconnectDevice()
-                    dismiss()
-                }) {
-                    HStack(alignment: .center, spacing: 5) {
-                        Image(systemName: "minus.circle")
-                            .frame(width: 18, height: 18)
-                        Text("移除打印机")
-                            .font(.system(size: 17, weight: .bold))
+            List {
+                // 视频监控区域
+                if device.capabilities.contains(.videoStream) {
+                    Section(header: Text("视频监控")) {
+                        VideoStreamView(device: device)
                     }
-                    .padding(.horizontal, 50)
-                    .padding(.vertical, 20)
-                    .frame(maxWidth: min(UIScreen.main.bounds.width - 40, 400), alignment: .center)
-                    .background(
-                        RoundedRectangle(cornerRadius: 100)
-                            .fill(Color.black)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 100)
-                                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
-                            )
-                    )
-                    .foregroundColor(.white)
                 }
-                .buttonStyle(PlainButtonStyle())
-                .listRowBackground(Color(red: 248/255, green: 248/255, blue: 248/255))
-                .listRowInsets(EdgeInsets())
-                .padding(.vertical, 10)
-                .padding(.horizontal, 20)
+                
+                // 打印控制区域
+                Section(header: Text("打印控制")) {
+                    PrintControlView(device: device)
+                }
+                
+                // 设备状态区域
+                Section(header: Text("设备状态")) {
+                    DeviceComponentStatusView(deviceStatus: device.deviceStatus)
+                    if let status = webSocketManager.currentStatus {
+                        DeviceTemperatureView(status: status)
+                    }
+                }
+                
+                // 添加移除设备按钮
+                Section {
+                    Button(action: {
+                        disconnectDevice()
+                        dismiss()
+                    }) {
+                        HStack(alignment: .center, spacing: 5) {
+                            Image(systemName: "minus.circle")
+                                .frame(width: 18, height: 18)
+                            Text("移除打印机")
+                                .font(.system(size: 17, weight: .bold))
+                        }
+                        .padding(.horizontal, 50)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: min(UIScreen.main.bounds.width - 40, 400), alignment: .center)
+                        .background(
+                            RoundedRectangle(cornerRadius: 100)
+                                .fill(Color.black)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 100)
+                                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                                )
+                        )
+                        .foregroundColor(.white)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .listRowBackground(Color(red: 248/255, green: 248/255, blue: 248/255))
+                    .listRowInsets(EdgeInsets())
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 20)
+                }
             }
+            .scrollContentBackground(.hidden)
         }
         .navigationTitle(device.name)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -71,7 +78,7 @@ struct DeviceDetailView: View {
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
-                    .foregroundColor(.black)
+                        .foregroundColor(.black)
                 }
             }
         }

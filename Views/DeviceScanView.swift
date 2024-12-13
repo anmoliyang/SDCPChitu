@@ -20,23 +20,25 @@ struct DeviceScanView: View {
     
     var body: some View {
         ZStack {
-            Color(red: 0.97, green: 0.97, blue: 0.97)
+            Color(red: 248/255, green: 248/255, blue: 248/255)
                 .ignoresSafeArea()
             
             VStack {
                 if isScanning {
                     GeometryReader { geometry in
                         VStack {
+                            Spacer()
+                                .frame(height: 10)
+                            
                             VStack(spacing: 15) {
                                 Text("正在扫描打印机...")
                                     .font(.system(size: 24, weight: .bold))
                                     .foregroundColor(.black)
                                 
                                 Text("请确保打印机处于同一局域网")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(Color.black.opacity(0.5))
                             }
-                            .padding(.top, 30)
                             
                             Spacer()
                             
@@ -79,7 +81,7 @@ struct DeviceScanView: View {
                             
                             Spacer()
                         }
-                        .frame(maxHeight: .infinity)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
                     }
                     .onAppear {
                         isAnimating = true
@@ -95,17 +97,18 @@ struct DeviceScanView: View {
                     // 设备列表
                     ScrollView {
                         if availableDevices.isEmpty {
-                            VStack(spacing: 12) {
+                            VStack(spacing: 15) {
+                                Text("没有找到设备")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.black)
+                                Text("请确保设备已开机并在同一网络中")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(Color.black.opacity(0.5))
                                 Image(systemName: "printer.fill")
                                     .font(.largeTitle)
                                     .foregroundColor(.gray)
-                                Text("未发现可用设备")
-                                    .font(.headline)
-                                Text("请确保设备已开机并在同一网络中")
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
                             }
-                            .padding(.vertical, 40)
+                            .padding(.top, 10)
                         } else {
                             VStack(spacing: 15) {
                                 ForEach(Array(availableDevices.enumerated()), id: \.element.id) { index, device in
@@ -119,7 +122,7 @@ struct DeviceScanView: View {
                                     }
                                 }
                             }
-                            .padding(.top, 30)
+                            .padding(.top, 10)
                         }
                     }
                     
@@ -146,6 +149,7 @@ struct DeviceScanView: View {
                 }
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -153,20 +157,20 @@ struct DeviceScanView: View {
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
-                    .foregroundColor(.black)
+                        .foregroundColor(.black)
                 }
             }
-        }
-        .alert("错误", isPresented: $showingError) {
-            Button("确定", role: .cancel) {}
-        } message: {
-            Text(errorMessage)
         }
         .onAppear {
             startScanning()
         }
         .onDisappear {
             stopScanning()
+        }
+        .alert("错误", isPresented: $showingError) {
+            Button("确定", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
         }
     }
     

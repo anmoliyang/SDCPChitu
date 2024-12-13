@@ -41,6 +41,7 @@ struct VideoStreamView: View {
             .buttonStyle(.bordered)
             .tint(isStreaming ? .red : .blue)
         }
+        .background(Color(red: 248/255, green: 248/255, blue: 248/255))
         .transaction { transaction in
             // 禁用所有隐式动画
             transaction.animation = nil
