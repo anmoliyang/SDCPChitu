@@ -6,6 +6,7 @@ struct DeviceDetailView: View {
     @StateObject private var webSocketManager = WebSocketManager.shared
     @State private var showingError = false
     @State private var errorMessage = ""
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         List {
@@ -30,7 +31,17 @@ struct DeviceDetailView: View {
             }
         }
         .navigationTitle(device.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "chevron.left")
+                    .foregroundColor(.black)
+                }
+            }
+        }
         .onAppear {
             connectToDevice()
         }

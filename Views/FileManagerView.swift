@@ -49,6 +49,17 @@ struct FileManagerView: View {
         }
         .navigationTitle("文件管理")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "chevron.left")
+                    .foregroundColor(.black)
+                }
+            }
+        }
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [.data],
@@ -86,7 +97,7 @@ struct FileManagerView: View {
                 case .success:
                     self.refreshFileList()
                 case .failure(let error):
-                    self.showError("上传失败: \(error.localizedDescription)")
+                    self.showError("��传失败: \(error.localizedDescription)")
                 }
             }
         }
@@ -161,7 +172,7 @@ struct FileManagerView: View {
                 name: name,
                 size: usedSize,
                 md5: "", // 服务器没有返回MD5
-                uploadTime: Date(), // 服务器没有返回上传时间
+                uploadTime: Date(), // 服务器没有返回��传时间
                 status: .ready
             )
         }

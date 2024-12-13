@@ -26,11 +26,11 @@ struct ContentView: View {
                         
                         VStack(spacing: 10) {
                             Text("添加一台设备")
-                                .font(.system(size: 24, weight: .medium))
+                                .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(.black)
                             
                             Text("开启你的3D打印之旅")
-                                .font(.system(size: 24, weight: .medium))
+                                .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(.black)
                         }
                         .padding(.top, 50)
