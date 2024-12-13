@@ -268,7 +268,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         }
         
         // 启动定时器进行状态更新
-        debugTimer?.invalidate() // 确保之前的定时器被清理
+        debugTimer?.invalidate() // 确保之前的定时��被清理
         debugTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
@@ -368,15 +368,14 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     
     // 添加调试命令处理方法
     private func handleDebugCommand(_ command: String) {
-        print("Debug: Handling command - \(command)")
-        
-        guard var currentStatus = self.currentStatus else { return }
+        let currentStatus: PrintStatus.MachineStatus
         
         switch command {
-        case "StartPrint":
+        case "print":
+            currentStatus = .printing
             let newPrintInfo = PrintInfo(
                 status: .exposuring,
-                currentLayer: 0,
+                currentLayer: 1,
                 totalLayer: 100,
                 currentTicks: 0,
                 totalTicks: 7200000,
@@ -387,17 +386,17 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                 printSpeed: 1.0,
                 zHeight: 0.0
             )
-            updateStatus(currentStatus: .printing, printInfo: newPrintInfo)
+            updateStatus(currentStatus: currentStatus, printInfo: newPrintInfo)
             
         case "pause":
             var newPrintInfo = currentStatus.printInfo
             newPrintInfo?.status = .paused
-            updateStatus(currentStatus: .printing, printInfo: newPrintInfo)
+            updateStatus(currentStatus: currentStatus, printInfo: newPrintInfo)
             
         case "resume":
             var newPrintInfo = currentStatus.printInfo
             newPrintInfo?.status = .exposuring
-            updateStatus(currentStatus: .printing, printInfo: newPrintInfo)
+            updateStatus(currentStatus: currentStatus, printInfo: newPrintInfo)
             
         case "stop":
             var newPrintInfo = currentStatus.printInfo
@@ -407,7 +406,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         case "home":
             var newPrintInfo = currentStatus.printInfo
             newPrintInfo?.status = .homing
-            updateStatus(currentStatus: currentStatus.currentStatus, printInfo: newPrintInfo)
+            updateStatus(currentStatus: currentStatus, printInfo: newPrintInfo)
             
         case "exposureTest":
             let newPrintInfo = PrintInfo(
