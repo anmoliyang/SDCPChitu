@@ -20,6 +20,9 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     /// 错误信息发布者
     private let errorSubject = PassthroughSubject<String, Never>()
     
+    /// 当前连接的设备
+    private var currentDevice: PrinterDevice?
+    
     /// 状态发布者
     var statusPublisher: AnyPublisher<PrintStatus, Never> {
         $currentStatus.compactMap { $0 }.eraseToAnyPublisher()
@@ -41,6 +44,16 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     
     private var device: PrinterDevice?  // 添加设备引用
     
+    enum ConnectionStatus {
+        case connected(deviceId: String)
+        case disconnected(deviceId: String)
+    }
+    
+    private let connectionStatusSubject = PassthroughSubject<ConnectionStatus, Never>()
+    var connectionStatusPublisher: AnyPublisher<ConnectionStatus, Never> {
+        connectionStatusSubject.eraseToAnyPublisher()
+    }
+    
     private override init() {
         super.init()
         print("Debug: WebSocketManager initialized")
@@ -48,17 +61,18 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     
     /// 连接到打印机
     func connect(to device: PrinterDevice, completion: @escaping (Result<Void, Error>) -> Void) {
-        self.device = device
+        self.currentDevice = device
+        self.deviceId = device.id
         print("Debug: Connecting to device \(device.id)")
         
         disconnect()
-        deviceId = device.id
         
         #if DEBUG
         DispatchQueue.main.async { [weak self] in
             print("Debug: Debug mode connection")
             self?.isConnected = true
             self?.startDebugStatusUpdates()
+            self?.connectionStatusSubject.send(.connected(deviceId: device.id))
             completion(.success(()))
         }
         #else
@@ -74,8 +88,9 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         receiveMessage()
         startHeartbeat()
         
-        DispatchQueue.main.async {
-            self.isConnected = true
+        DispatchQueue.main.async { [weak self] in
+            self?.isConnected = true
+            self?.connectionStatusSubject.send(.connected(deviceId: device.id))
             completion(.success(()))
         }
         #endif
@@ -84,22 +99,26 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     /// 断开连接
     func disconnect() {
         print("Debug: Disconnecting")
+        
+        if let deviceId = currentDevice?.id {
+            connectionStatusSubject.send(.disconnected(deviceId: deviceId))
+        }
+        
         #if DEBUG
         debugTimer?.invalidate()
         debugTimer = nil
         #else
+        webSocket?.cancel(with: .normalClosure, reason: nil)
+        webSocket = nil
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
-        webSocket?.cancel(with: .goingAway, reason: nil)
-        webSocket = nil
         #endif
         
+        isConnected = false
+        currentStatus = nil
+        videoStreamUrl = nil
+        currentDevice = nil
         deviceId = nil
-        DispatchQueue.main.async { [weak self] in
-            self?.isConnected = false
-            self?.currentStatus = nil
-            self?.videoStreamUrl = nil
-        }
     }
     
     /// 发送命令
@@ -449,5 +468,27 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         }
     }
     #endif
+    
+    // MARK: - URLSessionWebSocketDelegate
+    
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
+        print("Debug: WebSocket did connect")
+        DispatchQueue.main.async { [weak self] in
+            self?.isConnected = true
+            if let deviceId = self?.currentDevice?.id {
+                self?.connectionStatusSubject.send(.connected(deviceId: deviceId))
+            }
+        }
+    }
+    
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        print("Debug: WebSocket did disconnect")
+        DispatchQueue.main.async { [weak self] in
+            if let deviceId = self?.currentDevice?.id {
+                self?.connectionStatusSubject.send(.disconnected(deviceId: deviceId))
+            }
+            self?.disconnect()
+        }
+    }
 }
 

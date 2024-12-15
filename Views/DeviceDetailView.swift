@@ -72,6 +72,7 @@ struct DeviceDetailView: View {
         .navigationTitle(device.name)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .background(CustomNavigationConfigurator())
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {

@@ -7,6 +7,51 @@
 
 import SwiftUI
 
+// 创建一个自定义的导航配置视图修饰符
+struct CustomNavigationConfigurator: UIViewControllerRepresentable {
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: CustomNavigationConfigurator
+        
+        init(_ parent: CustomNavigationConfigurator) {
+            self.parent = parent
+            super.init()
+        }
+        
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            return true
+        }
+        
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            return true
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    func makeUIViewController(context: Context) -> UIViewController {
+        let viewController = UIViewController()
+        return viewController
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        DispatchQueue.main.async {
+            if let navigationController = uiViewController.navigationController {
+                navigationController.interactivePopGestureRecognizer?.delegate = context.coordinator
+                navigationController.interactivePopGestureRecognizer?.isEnabled = true
+            }
+        }
+    }
+}
+
+// 添加 View 扩展，使所有视图都可以方便地启用侧滑返回
+extension View {
+    func enableSwipeBack() -> some View {
+        self.background(CustomNavigationConfigurator())
+    }
+}
+
 struct ContentView: View {
     @StateObject private var deviceManager = DeviceManager.shared
     
@@ -45,6 +90,7 @@ struct ContentView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .background(CustomNavigationConfigurator())
         }
     }
 }
@@ -52,51 +98,126 @@ struct ContentView: View {
 // 已连接设备行视图
 struct ConnectedDeviceRow: View {
     let device: PrinterDevice
+    @ObservedObject private var webSocketManager = WebSocketManager.shared
+    @ObservedObject private var deviceManager = DeviceManager.shared
+    @State private var showingToast = false
+    @State private var shouldNavigate = false
+    
+    // 判断设备是否在连接中
+    private var isConnecting: Bool {
+        deviceManager.connectingDevices.contains(device.id)
+    }
+    
+    // 判断设备是否离线
+    private var isOffline: Bool {
+        !deviceManager.isDeviceConnected(device.id)
+    }
+    
+    var connectionStatusText: String {
+        if isConnecting {
+            return "连接中..."
+        } else if isOffline {
+            return "离线"
+        } else if let status = deviceManager.deviceStatuses[device.id],
+                  status.currentStatus == .printing {
+            return "打印中"
+        }
+        return "已连接"
+    }
+    
+    var statusColor: Color {
+        if isConnecting {
+            return .orange
+        } else if isOffline {
+            return .gray
+        } else if let status = deviceManager.deviceStatuses[device.id],
+                  status.currentStatus == .printing {
+            return .orange
+        }
+        return Color(red: 0.19, green: 0.80, blue: 0.62)
+    }
     
     var body: some View {
-        HStack(spacing: 16) {
-            // 设备图片
-            Image("printer_thumbnail")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 70, height: 70)
-                .foregroundColor(.black)
-            
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(device.machineName)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.black)
-                    Text(device.brandName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
+        Button(action: handleDeviceClick) {
+            HStack(alignment: .bottom, spacing: 30) {
+                VStack(alignment: .leading, spacing: 49) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(device.brandName)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color.black.opacity(0.5))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(device.machineName)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 47, maxHeight: 47)
+                    
+                    HStack(spacing: 5) {
+                        HStack(spacing: 5) {
+                            Text(connectionStatusText)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(statusColor)
+                        }
+                        .padding(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+                        .background(statusColor.opacity(0.10))
+                        .cornerRadius(5)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                Spacer()
-                
-                Text("IP: \(device.ipAddress)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray)
+                // 设备图片
+                Image("printer_thumbnail")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 100, height: 100)
+                    .background(Color.white)
             }
-            
-            Spacer()
-            
-            // 连接状态指示器
-            Image(systemName: "link")
-                .foregroundColor(.green)
-                .padding(.trailing, 20)
+            .padding(20)
+            .frame(maxWidth: .infinity)
+            .frame(height: 150)
+            .background(.white)
+            .cornerRadius(15)
+            .overlay(
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            )
+            .opacity(isOffline ? 0.8 : 1.0)
         }
-        .padding(.leading, 20)
-        .padding([.top, .bottom, .trailing], 20)
-        .background(
-            RoundedRectangle(cornerRadius: 15)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 15)
-                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
-                )
-        )
-        .cornerRadius(15)
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isConnecting)
+        .navigationDestination(isPresented: $shouldNavigate) {
+            DeviceDetailView(device: device)
+                .onDisappear {
+                    // 当详情页面消失时，确保 Toast 也被隐藏
+                    showingToast = false
+                }
+        }
+        .toast(isPresented: $showingToast, message: "正在连接设备...")
+    }
+    
+    private func handleDeviceClick() {
+        if isOffline {
+            showingToast = true
+            reconnectDevice()
+        } else {
+            shouldNavigate = true
+        }
+    }
+    
+    private func reconnectDevice() {
+        deviceManager.reconnectDevice(device) { success in
+            if success {
+                // 在导航之前确保 Toast 消失
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showingToast = false
+                    shouldNavigate = true
+                }
+            } else {
+                // 连接失败时也要隐藏 Toast
+                showingToast = false
+            }
+        }
     }
 }
 
@@ -155,15 +276,11 @@ private struct DeviceListView: View {
         ScrollView {
             VStack(spacing: 15) {
                 ForEach(deviceManager.connectedDevices) { device in
-                    NavigationLink {
-                        DeviceDetailView(device: device)
-                    } label: {
-                        ConnectedDeviceRow(device: device)
-                    }
+                    ConnectedDeviceRow(device: device)
                 }
             }
             .padding(.top, 10)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 15)
         }
     }
 }

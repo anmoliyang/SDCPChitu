@@ -151,6 +151,7 @@ struct DeviceScanView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .background(CustomNavigationConfigurator())
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
