@@ -45,8 +45,8 @@ struct PrintProgressView: View {
     // 创建预览用的 PrintInfo
     let printInfoJson: [String: Any] = [
         "Status": 3,  // SDCP_PRINT_STATUS_EXPOSURING
-        "CurrentLayer": 50,
-        "TotalLayer": 100,
+        "CurrentLayer": 5,  // 修改为当前第5层
+        "TotalLayer": 10,  // 修改为总共10层
         "CurrentTicks": 3600000,
         "TotalTicks": 7200000,
         "Filename": "test.ctb",
@@ -66,8 +66,8 @@ struct PrintProgressView: View {
         "TempTargetBox": 28.0,
         "PrintInfo": [
             "Status": 3,
-            "CurrentLayer": 50,
-            "TotalLayer": 100,
+            "CurrentLayer": 5,  // 修改为当前第5层
+            "TotalLayer": 10,  // 修改为总共10层
             "CurrentTicks": 3600000,
             "TotalTicks": 7200000,
             "Filename": "test.ctb",

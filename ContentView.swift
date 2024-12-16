@@ -127,12 +127,12 @@ struct ConnectedDeviceRow: View {
     
     var statusColor: Color {
         if isConnecting {
-            return .orange
+            return .blue
         } else if isOffline {
             return .gray
         } else if let status = deviceManager.deviceStatuses[device.id],
                   status.currentStatus == .printing {
-            return .orange
+            return .blue
         }
         return Color(red: 0.19, green: 0.80, blue: 0.62)
     }

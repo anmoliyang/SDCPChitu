@@ -40,7 +40,31 @@ struct DeviceDetailView: View {
                 // 打印状态部分
                 if let info = printInfo,
                    let status = printStatus {
-                    PrintStatusSection(status: status, info: info)
+                    PrintStatusSection(
+                        status: status, 
+                        info: info,
+                        onClose: {
+                            // 发送清除打印状态的命令
+                            if let deviceId = webSocketManager.deviceId {
+                                let message: [String: Any] = [
+                                    "Topic": "sdcp/request/\(deviceId)",
+                                    "Data": [
+                                        "MainboardID": deviceId,
+                                        "RequestID": UUID().uuidString,
+                                        "TimeStamp": Int(Date().timeIntervalSince1970),
+                                        "From": 3,
+                                        "Cmd": 134,  // 清除打印状态命令
+                                        "Data": [:]
+                                    ]
+                                ]
+                                
+                                if let data = try? JSONSerialization.data(withJSONObject: message),
+                                   let jsonString = String(data: data, encoding: .utf8) {
+                                    webSocketManager.sendCommand(jsonString)
+                                }
+                            }
+                        }
+                    )
                 }
                 
                 // 操作控制部分
@@ -74,31 +98,40 @@ struct DeviceDetailView: View {
                         }
                         .padding(.horizontal, 15)
                         
-                        // 打印控制部分
-                        if isStoppingPrint {
-                            // 停止中按钮
-                            Button(action: {}) {
-                                HStack(spacing: 5) {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .scaleEffect(0.8)
-                                    Text("停止中...")
-                                        .font(.system(size: 16, weight: .bold))
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .primaryButtonStyle(backgroundColor: Color(red: 0.87, green: 0.16, blue: 0.16))
-                            .disabled(true)
-                            .padding(.horizontal, 15)
-                        } else if let info = printInfo {
-                            // 主要控制按钮
-                            if info.status == .exposuring || 
-                               info.status == .dropping ||
-                               info.status == .lifting ||
-                               info.status == .homing {
-                                // 暂停和停止按钮并排
+                        // 打印控制按钮
+                        if let info = printInfo {
+                            switch info.status {
+                            case .paused, .pausing:  // 暂停状态
+                                // 暂停状态显示继续打印和停止打印按钮
                                 HStack(spacing: 15) {
-                                    // 暂停打印按钮
+                                    Button {
+                                        confirmAction("确定要继续打印吗？") {
+                                            sendCommand("resume")
+                                        }
+                                    } label: {
+                                        Text("继续打印")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .primaryButtonStyle()
+                                    
+                                    Button {
+                                        confirmAction("确定要停止打印吗？此操作不可恢复。") {
+                                            sendCommand("stop")
+                                        }
+                                    } label: {
+                                        Text("停止打印")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .primaryButtonStyle(backgroundColor: .red)
+                                    .tint(.white)
+                                }
+                                .padding(.horizontal, 15)
+                                
+                            case .exposuring, .lifting, .dropping, .homing:  // 打印中状态
+                                // 打印中状态显示暂停和停止按钮
+                                HStack(spacing: 15) {
                                     Button {
                                         confirmAction("确定要暂停打印吗？") {
                                             sendCommand("pause")
@@ -110,7 +143,6 @@ struct DeviceDetailView: View {
                                     }
                                     .primaryButtonStyle()
                                     
-                                    // 停止打印按钮
                                     Button {
                                         confirmAction("确定要停止打印吗？此操作不可恢复。") {
                                             sendCommand("stop")
@@ -120,42 +152,50 @@ struct DeviceDetailView: View {
                                             .font(.system(size: 16, weight: .bold))
                                             .frame(maxWidth: .infinity)
                                     }
-                                    .primaryButtonStyle(backgroundColor: Color(red: 0.87, green: 0.16, blue: 0.16))
+                                    .primaryButtonStyle(backgroundColor: .red)
+                                    .tint(.white)
                                 }
                                 .padding(.horizontal, 15)
-                            } else if info.status == .paused ||
-                                      info.status == .pausing {
-                                // 继续和停止按钮并排
-                                HStack(spacing: 15) {
-                                    // 继续打印按钮
-                                    Button {
-                                        sendCommand("resume")
-                                    } label: {
-                                        Text("继续打印")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    .primaryButtonStyle()
-                                    
-                                    // 停止打印按钮
-                                    Button {
-                                        confirmAction("确定要停止打印吗？此操作不可恢复。") {
-                                            sendCommand("stop")
-                                        }
-                                    } label: {
-                                        Text("停止打印")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    .primaryButtonStyle(backgroundColor: Color(red: 0.87, green: 0.16, blue: 0.16))
+                                
+                            case .stopping:  // 停止中状态
+                                // 显示停止中按钮
+                                Button {
+                                    // 停止中状态下按钮不可点击
+                                } label: {
+                                    Text("停止中...")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .frame(maxWidth: .infinity)
                                 }
+                                .primaryButtonStyle(backgroundColor: .red)
+                                .tint(.white)
+                                .disabled(true)  // 禁用按钮
                                 .padding(.horizontal, 15)
+                                
+                            case .complete, .stopped, .idle:  // 可以开始新打印的状态
+                                // 完成、停止或空闲状态显示开始打印按钮
+                                Button {
+                                    confirmAction("确定要开始打印吗？") {
+                                        sendCommand("StartPrint")
+                                    }
+                                } label: {
+                                    Text("开始打印")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .primaryButtonStyle()
+                                .padding(.horizontal, 15)
+                                
+                            case .fileChecking:  // 文件检查状态
+                                // 这些状态下不显示任何按钮
+                                EmptyView()
                             }
                         } else {
-                            // 开始打印按钮
-                            Button(action: { 
-                                sendCommand("StartPrint")
-                            }) {
+                            // 没有打印信息时显示开始打印按钮
+                            Button {
+                                confirmAction("确定要开始打印吗？") {
+                                    sendCommand("StartPrint")
+                                }
+                            } label: {
                                 Text("开始打印")
                                     .font(.system(size: 16, weight: .bold))
                                     .frame(maxWidth: .infinity)

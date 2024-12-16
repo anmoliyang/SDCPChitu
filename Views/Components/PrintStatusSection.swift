@@ -3,16 +3,18 @@ import SwiftUI
 struct PrintStatusSection: View {
     let status: PrintStatus
     let info: PrintInfo
+    @State private var showingCloseAlert = false
+    let onClose: () -> Void
     
     var body: some View {
         Section {
             VStack(spacing: 15) {
                 // 标题状态模块
-                HStack(alignment: .center, spacing: 15) {
+                HStack(alignment: .top, spacing: 15) {
                     // 左侧缩略图
                     Rectangle()
                         .fill(Color.gray.opacity(0.1))
-                        .frame(width: 60, height: 60)
+                        .frame(width: 70, height: 70)
                         .cornerRadius(8)
                         .overlay(
                             Image(systemName: "cube.fill")
@@ -21,45 +23,91 @@ struct PrintStatusSection: View {
                         )
                     
                     // 右侧标题和状态
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(info.filename)
-                            .font(.system(size: 18, weight: .semibold))
-                            .lineLimit(1)
-                        
-                        // 根据打印状态显示不同的文本和颜色
-                        switch info.status {
-                        case .exposuring, .dropping, .lifting, .homing:
-                            Text("打印中")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 14))
-                        case .paused, .pausing:
-                            Text("已暂停")
-                                .foregroundColor(.orange)
-                                .font(.system(size: 14))
-                        case .stopping:
-                            Text("停止中")
-                                .foregroundColor(.red)
-                                .font(.system(size: 14))
-                        case .stopped:
-                            Text("已停止")
-                                .foregroundColor(.red)
-                                .font(.system(size: 14))
-                        case .complete:
-                            Text("已完成")
-                                .foregroundColor(.green)
-                                .font(.system(size: 14))
-                        case .fileChecking:
-                            Text("文件检查中")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 14))
-                        case .idle:
-                            Text("准备中")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 0) {
+                        // 标题行
+                        HStack(spacing: 0) {
+                            Text(info.filename)
+                                .font(.system(size: 18, weight: .semibold))
+                                .lineLimit(1)
+                            
+                            Spacer()
+                            
+                            // 完成状态或停止状态时显示关闭按钮
+                            if info.status == .complete || info.status == .stopped {
+                                Button(action: {
+                                    showingCloseAlert = true
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .foregroundColor(.black)
+                                        .font(.system(size: 16))
+                                        .frame(width: 32, height: 32)
+                                        .background(Color(red: 248/255, green: 248/255, blue: 248/255))
+                                        .cornerRadius(8)
+                                }
+                            }
                         }
+                        .frame(height: 32)
+                        .frame(maxWidth: .infinity)
+                        
+                        Spacer()
+                        
+                        // 状态显示部分
+                        let statusView = switch info.status {
+                        case .exposuring, .lifting, .dropping, .homing:
+                            HStack(spacing: 5) {
+                                Text("打印中")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+                            .background(Color.blue.opacity(0.10))
+                            .cornerRadius(5)
+                        case .pausing, .paused:  // 合并暂停相关状态
+                            HStack(spacing: 5) {
+                                Text("已暂停")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+                            .background(Color.orange.opacity(0.10))
+                            .cornerRadius(5)
+                        case .stopping, .stopped:  // 合并停止相关状态
+                            HStack(spacing: 5) {
+                                Text("已停止")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.red)
+                            }
+                            .padding(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+                            .background(Color.red.opacity(0.10))
+                            .cornerRadius(5)
+                        case .complete:  // 保持完成状态
+                            HStack(spacing: 5) {
+                                Text("已完成")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.green)
+                            }
+                            .padding(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+                            .background(Color.green.opacity(0.10))
+                            .cornerRadius(5)
+                        default:  // 其他状态（包括 idle, fileChecking 等）显示为准备中
+                            HStack(spacing: 5) {
+                                Text("准备中")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+                            .background(Color.gray.opacity(0.10))
+                            .cornerRadius(5)
+                        }
+                        
+                        // 显示状态视图
+                        statusView
+                            .padding(.bottom, 0)
+                            .onChange(of: info.status) { oldValue, newValue in
+                                print("Debug: Print status changed from \(oldValue) to \(newValue)")
+                            }
                     }
-                    
-                    Spacer()
+                    .frame(height: 70)
                 }
                 
                 // 打印信息模块
@@ -124,9 +172,17 @@ struct PrintStatusSection: View {
             .padding(15)
             .background(Color(.systemBackground))
             .cornerRadius(12)
+            .listRowInsets(EdgeInsets())
+            .padding(.horizontal, 15)
+            .alert("确认关闭", isPresented: $showingCloseAlert) {
+                Button("取消", role: .cancel) { }
+                Button("确认", role: .destructive) {
+                    onClose()
+                }
+            } message: {
+                Text("是否确认关闭当前打印任务？")
+            }
         }
-        .listRowInsets(EdgeInsets())
-        .padding(.horizontal, 15)
     }
     
     // MARK: - 辅助函数
@@ -152,33 +208,34 @@ struct PrintStatusSection: View {
                 boxTemperature: 25.0,
                 boxTargetTemperature: 25.0,
                 printInfo: PrintInfo(
-                    status: .exposuring,
-                    currentLayer: 81,
-                    totalLayer: 100,
-                    currentTicks: 1000,
+                    status: .complete,
+                    currentLayer: 10,
+                    totalLayer: 10,
+                    currentTicks: 7200000,
                     totalTicks: 7200000,
                     filename: "CBD+Evolution+Model",
                     errorNumber: 0,
                     taskId: "TEST001",
-                    remainingTicks: 7200000,
+                    remainingTicks: 0,
                     printSpeed: 1.0,
                     zHeight: 0.05
                 ),
                 devicesStatus: nil
             ),
             info: PrintInfo(
-                status: .exposuring,
-                currentLayer: 81,
-                totalLayer: 100,
-                currentTicks: 1000,
+                status: .complete,
+                currentLayer: 10,
+                totalLayer: 10,
+                currentTicks: 7200000,
                 totalTicks: 7200000,
                 filename: "CBD+Evolution+Model",
                 errorNumber: 0,
                 taskId: "TEST001",
-                remainingTicks: 7200000,
+                remainingTicks: 0,
                 printSpeed: 1.0,
                 zHeight: 0.05
-            )
+            ),
+            onClose: {}
         )
     }
     .listStyle(InsetGroupedListStyle())

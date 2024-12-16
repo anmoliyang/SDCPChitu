@@ -148,6 +148,40 @@ final class WebSocketManager: ObservableObject {
         let newCurrentTicks = min(printInfo.currentTicks + 1000, printInfo.totalTicks)
         let newRemainingTicks = max(printInfo.remainingTicks - 1000, 0)
         
+        // 判断是否打印完成
+        if newCurrentLayer >= printInfo.totalLayer {
+            // 创建打印完成状态
+            let completedStatus = PrintStatus(
+                currentStatus: .idle,
+                previousStatus: .printing,
+                printScreenTime: currentStatus.printScreenTime,
+                releaseFilmCount: currentStatus.releaseFilmCount,
+                uvledTemperature: currentStatus.uvledTemperature,
+                timeLapseEnabled: currentStatus.timeLapseEnabled,
+                boxTemperature: currentStatus.boxTemperature,
+                boxTargetTemperature: currentStatus.boxTargetTemperature,
+                printInfo: PrintInfo(
+                    status: .complete,  // 设置为完成状态
+                    currentLayer: printInfo.totalLayer,
+                    totalLayer: printInfo.totalLayer,
+                    currentTicks: printInfo.totalTicks,
+                    totalTicks: printInfo.totalTicks,
+                    filename: printInfo.filename,
+                    errorNumber: 0,
+                    taskId: printInfo.taskId,
+                    remainingTicks: 0,
+                    printSpeed: printInfo.printSpeed,
+                    zHeight: printInfo.zHeight
+                ),
+                devicesStatus: currentStatus.devicesStatus
+            )
+            
+            updateStatus(completedStatus)
+            debugTimer?.invalidate()  // 停止定时器
+            return
+        }
+        
+        // 继续打印中状态更新
         let newPrintInfo = PrintInfo(
             status: .exposuring,
             currentLayer: newCurrentLayer,
@@ -282,7 +316,7 @@ final class WebSocketManager: ObservableObject {
             boxTargetTemperature: currentStatus.boxTargetTemperature,
             printInfo: currentStatus.printInfo.map { info in
                 PrintInfo(
-                    status: .stopping,  // 设置为停止中状态
+                    status: .stopped,  // 修改为已停止状态
                     currentLayer: info.currentLayer,
                     totalLayer: info.totalLayer,
                     currentTicks: info.currentTicks,
@@ -300,27 +334,6 @@ final class WebSocketManager: ObservableObject {
         
         updateStatus(stoppingStatus)
         debugTimer?.invalidate()
-        
-        // 延迟一小段时间后更新为完全停止状态
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self else { return }
-            
-            let stoppedStatus = PrintStatus(
-                currentStatus: .idle,  // 回到空闲状态
-                previousStatus: .stopped,
-                printScreenTime: currentStatus.printScreenTime,
-                releaseFilmCount: currentStatus.releaseFilmCount,
-                uvledTemperature: currentStatus.uvledTemperature,
-                timeLapseEnabled: currentStatus.timeLapseEnabled,
-                boxTemperature: currentStatus.boxTemperature,
-                boxTargetTemperature: currentStatus.boxTargetTemperature,
-                printInfo: nil,  // 清除打印信息
-                devicesStatus: currentStatus.devicesStatus
-            )
-            
-            self.updateStatus(stoppedStatus)
-            self.debugTimer = nil
-        }
     }
     
     private func handleDebugCommand(_ command: String) {
@@ -362,7 +375,7 @@ final class WebSocketManager: ObservableObject {
         let printInfo = PrintInfo(
             status: .homing,
             currentLayer: 0,
-            totalLayer: 100,
+            totalLayer: 10,
             currentTicks: 0,
             totalTicks: 10000,
             filename: "测试打印",
@@ -498,6 +511,14 @@ final class WebSocketManager: ObservableObject {
         currentStatus = status
         statusSubject.send(status)
     }
+    
+    #if DEBUG
+    private func handleDebugClearPrintCommand() {
+        currentStatus = nil
+        debugTimer?.invalidate()
+        debugTimer = nil
+    }
+    #endif
     #endif
     
     // 处理视频流响应
@@ -512,6 +533,55 @@ final class WebSocketManager: ObservableObject {
                     }
                 }
             }
+        }
+    }
+    
+    private func handlePrintStatusUpdate(_ status: PrintStatus) {
+        // 如果是从暂停状态恢复，需要保持原有进度
+        if let currentStatus = self.currentStatus,
+           currentStatus.printInfo?.status == .paused,
+           status.printInfo?.status == .exposuring {
+            
+            // 创建新的打印信息，保持原有进度
+            let updatedPrintInfo = currentStatus.printInfo.map { info in
+                PrintInfo(
+                    status: .exposuring,  // 更新为打印中状态
+                    currentLayer: info.currentLayer,  // 保持暂停时的层数
+                    totalLayer: info.totalLayer,
+                    currentTicks: info.currentTicks,  // 保持暂停时的时间
+                    totalTicks: info.totalTicks,
+                    filename: info.filename,
+                    errorNumber: info.errorNumber,
+                    taskId: info.taskId,
+                    remainingTicks: info.remainingTicks,  // 保持暂停时的剩余时间
+                    printSpeed: info.printSpeed,
+                    zHeight: info.zHeight
+                )
+            }
+            
+            // 创建新的状态对象，但保持原有的打印进度信息
+            let updatedStatus = PrintStatus(
+                currentStatus: .printing,  // 更新为打印状态
+                previousStatus: .paused,   // 设置前一个状态为暂停
+                printScreenTime: currentStatus.printScreenTime,  // 保持原有的打印时间
+                releaseFilmCount: currentStatus.releaseFilmCount,
+                uvledTemperature: status.uvledTemperature,  // 使用新状态的温度信息
+                timeLapseEnabled: status.timeLapseEnabled,
+                boxTemperature: status.boxTemperature,
+                boxTargetTemperature: status.boxTargetTemperature,
+                printInfo: updatedPrintInfo,
+                devicesStatus: status.devicesStatus
+            )
+            
+            updateStatus(updatedStatus)
+            
+            #if DEBUG
+            if currentDevice?.id.starts(with: "DEBUG") ?? false {
+                startDebugStatusUpdates()  // 重新启动调试定时器
+            }
+            #endif
+        } else {
+            updateStatus(status)
         }
     }
 }
