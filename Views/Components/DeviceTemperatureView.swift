@@ -6,15 +6,19 @@ struct DeviceTemperatureView: View {
     
     var body: some View {
         VStack {
-            DeviceStatusRow(title: "UVLED温度", 
-                          value: String(format: "%.1f°C", status.uvledTemperature))
-                .foregroundColor(getTemperatureColor(status.uvledTemperature))
+            StatusRow(
+                title: "UVLED温度", 
+                value: String(format: "%.1f°C", status.uvledTemperature),
+                foregroundColor: getTemperatureColor(status.uvledTemperature)
+            )
             
-            DeviceStatusRow(title: "箱体温度", 
-                          value: String(format: "%.1f°C / %.1f°C", 
-                                      status.boxTemperature,
-                                      status.boxTargetTemperature))
-                .foregroundColor(getTemperatureColor(status.boxTemperature))
+            StatusRow(
+                title: "箱体温度", 
+                value: String(format: "%.1f°C / %.1f°C", 
+                            status.boxTemperature,
+                            status.boxTargetTemperature),
+                foregroundColor: getTemperatureColor(status.boxTemperature)
+            )
         }
     }
     
@@ -29,4 +33,19 @@ struct DeviceTemperatureView: View {
             return .green
         }
     }
+}
+
+#Preview {
+    DeviceTemperatureView(status: PrintStatus(
+        currentStatus: .printing,
+        previousStatus: .idle,
+        printScreenTime: 0,
+        releaseFilmCount: 0,
+        uvledTemperature: 25.0,
+        timeLapseEnabled: false,
+        boxTemperature: 25.0,
+        boxTargetTemperature: 28.0,
+        printInfo: nil,
+        devicesStatus: .debugDefault
+    ))
 }

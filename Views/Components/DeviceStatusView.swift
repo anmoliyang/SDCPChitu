@@ -38,20 +38,20 @@ struct DeviceStatusView: View {
             VStack(spacing: 8) {
                 if status.isPrinting {
                     StatusInfoRow(title: "打印文件", value: printInfo.filename)
-                    StatusInfoRow(title: "打印速度", 
-                                value: String(format: "%.1fx", printInfo.printSpeed))
-                    StatusInfoRow(title: "Z轴高度", 
-                                value: String(format: "%.2fmm", printInfo.zHeight))
+                    StatusInfoRow(title: "当前层数", 
+                                value: "\(printInfo.currentLayer)/\(printInfo.totalLayer)")
+                    StatusInfoRow(title: "打印进度", 
+                                value: "\(Int((Double(printInfo.currentLayer) / Double(printInfo.totalLayer)) * 100))%")
                 }
                 
                 if status.isExposureTesting {
                     StatusInfoRow(title: "曝光时间", 
-                                value: "\(status.printScreenTime)ms")
+                                value: "\(status.printScreenTime)s")
                 }
                 
                 if status.isDevicesTesting {
-                    StatusInfoRow(title: "自检次数", 
-                                value: "\(status.releaseFilmCount)次")
+                    StatusInfoRow(title: "自检状态", 
+                                value: getDeviceTestStatus(status))
                 }
             }
         }
@@ -64,6 +64,8 @@ struct DeviceStatusView: View {
         case .fileTransferring: return "arrow.down.doc.fill"
         case .exposureTesting: return "rays"
         case .devicesTesting: return "gearshape.2"
+        case .paused: return "pause.circle.fill"
+        case .stopped: return "stop.circle.fill"
         }
     }
     
@@ -74,6 +76,8 @@ struct DeviceStatusView: View {
         case .fileTransferring: return .blue
         case .exposureTesting: return .orange
         case .devicesTesting: return .purple
+        case .paused: return .yellow
+        case .stopped: return .red
         }
     }
     
@@ -89,36 +93,99 @@ struct DeviceStatusView: View {
         case .fileChecking: return .blue
         }
     }
+    
+    private func getDeviceTestStatus(_ status: PrintStatus) -> String {
+        // 根据设备测试状态返回对应的文本
+        if let devices = status.devicesStatus {
+            var statusTexts = [String]()
+            
+            if devices.tempSensorStatusOfUVLED == 0 {
+                statusTexts.append("UVLED温度传感器未接入")
+            } else if devices.tempSensorStatusOfUVLED == 2 {
+                statusTexts.append("UVLED温度传感器异常")
+            }
+            
+            if devices.lcdStatus == 0 {
+                statusTexts.append("曝光屏未连接")
+            }
+            
+            if devices.sgStatus == 0 {
+                statusTexts.append("应变片未接入")
+            } else if devices.sgStatus == 2 {
+                statusTexts.append("应变片校准失败")
+            }
+            
+            if devices.zMotorStatus == 0 {
+                statusTexts.append("Z轴电机未连接")
+            }
+            
+            if devices.rotateMotorStatus == 0 {
+                statusTexts.append("旋转轴电机未连接")
+            }
+            
+            if devices.releaseFilmState == 0 {
+                statusTexts.append("离型膜异常")
+            }
+            
+            if devices.xMotorStatus == 0 {
+                statusTexts.append("X轴电机未连接")
+            }
+            
+            if statusTexts.isEmpty {
+                return "设备自检正常"
+            } else {
+                return statusTexts.joined(separator: "\n")
+            }
+        }
+        
+        return "正在检测"
+    }
 }
 
 #Preview {
-    let previewPrintInfo = PrintInfo(
-        status: .exposuring,
-        currentLayer: 50,
-        totalLayer: 100,
-        currentTicks: 3600000,
-        totalTicks: 7200000,
-        filename: "test.ctb",
-        errorNumber: 0,
-        taskId: "TEST001",
-        remainingTicks: 3600000,
-        printSpeed: 1.0,
-        zHeight: 50.0
-    )
+    // 创建预览用的 PrintInfo
+    let printInfoJson: [String: Any] = [
+        "Status": 3,  // SDCP_PRINT_STATUS_EXPOSURING
+        "CurrentLayer": 50,
+        "TotalLayer": 100,
+        "CurrentTicks": 3600000,
+        "TotalTicks": 7200000,
+        "Filename": "test.ctb",
+        "ErrorNumber": 0,
+        "TaskId": "TEST001"
+    ]
     
-    let previewStatus = PrintStatus(
-        currentStatus: .printing,
-        previousStatus: .idle,
-        printScreenTime: 8000,
-        releaseFilmCount: 0,
-        uvledTemperature: 25.0,
-        timeLapseEnabled: true,
-        boxTemperature: 25.0,
-        boxTargetTemperature: 28.0,
-        printInfo: previewPrintInfo
-    )
+    // 创建预览用的 PrintStatus
+    let statusJson: [String: Any] = [
+        "CurrentStatus": [1],  // [SDCP_MACHINE_STATUS_PRINTING]
+        "PreviousStatus": 0,   // SDCP_MACHINE_STATUS_IDLE
+        "PrintScreen": 8000,
+        "ReleaseFilm": 0,
+        "TempOfUVLED": 25.0,
+        "TimeLapseStatus": 1,
+        "TempOfBox": 25.0,
+        "TempTargetBox": 28.0,
+        "PrintInfo": [
+            "Status": 3,
+            "CurrentLayer": 50,
+            "TotalLayer": 100,
+            "CurrentTicks": 3600000,
+            "TotalTicks": 7200000,
+            "Filename": "test.ctb",
+            "ErrorNumber": 0,
+            "TaskId": "TEST001"
+        ]
+    ]
+    
+    // 使用 try? 处理可能的解码错误
+    let previewPrintInfo = try? JSONDecoder().decode(PrintInfo.self, 
+        from: JSONSerialization.data(withJSONObject: printInfoJson))
+    let previewStatus = try? JSONDecoder().decode(PrintStatus.self, 
+        from: JSONSerialization.data(withJSONObject: statusJson))
     
     return List {
-        DeviceStatusView(status: previewStatus, printInfo: previewPrintInfo)
+        if let status = previewStatus, let printInfo = previewPrintInfo {
+            DeviceStatusView(status: status, printInfo: printInfo)
+        }
     }
 } 

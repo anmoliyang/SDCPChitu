@@ -1,4 +1,5 @@
 import SwiftUI
+import AVKit
 
 /// 视频监控组件
 struct VideoStreamView: View {
@@ -25,10 +26,13 @@ struct VideoStreamView: View {
                             .foregroundColor(.gray)
                     }
                 } else if let url = webSocketManager.videoStreamUrl {
-                    // TODO: 添加RTSP视频预览视图
-                    Text(url)
-                        .foregroundColor(.white)
-                        .font(.caption)
+                    if let videoURL = URL(string: url) {
+                        VideoPlayer(player: AVPlayer(url: videoURL))
+                            .aspectRatio(16/9, contentMode: .fit)
+                    } else {
+                        Text("视频流地址无效")
+                            .foregroundColor(.red)
+                    }
                 }
             }
             .cornerRadius(8)
@@ -43,7 +47,6 @@ struct VideoStreamView: View {
         }
         .background(Color(red: 248/255, green: 248/255, blue: 248/255))
         .transaction { transaction in
-            // 禁用所有隐式动画
             transaction.animation = nil
         }
     }

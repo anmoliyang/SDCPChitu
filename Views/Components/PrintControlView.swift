@@ -18,33 +18,29 @@ struct PrintControlView: View {
     
     var body: some View {
         VStack(spacing: 16) {
-            if let status = printStatus,
-               let info = printInfo {
-                // 打印状态显示
-                DeviceStatusView(status: status, printInfo: info)
-                
-                // 打印进度
-                PrintProgressView(printInfo: info)
-                
+            if let info = printInfo {
                 // 打印控制按钮组
                 PrintControlButtons(printInfo: info) { command in
                     sendCommand(command)
                 } confirmAction: { message, action in
                     confirmAction(message: message, action: action)
                 }
-                .padding(.vertical, 8)
             } else {
-                NonPrintingView { command in
-                    sendCommand(command)
+                #if DEBUG
+                // 调试模式下显示开始打印按钮
+                Button(action: { sendCommand("StartPrint") }) {
+                    Label("开始打印", systemImage: "play.circle.fill")
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.vertical, 8)
+                .buttonStyle(.bordered)
+                .tint(.blue)
+                #endif
             }
         }
-        .background(Color(red: 248/255, green: 248/255, blue: 248/255))
-        .transaction { transaction in
-            // 禁用所有隐式动画
-            transaction.animation = nil
-        }
+        .padding(.vertical, 16)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 15)
         .alert("确认", isPresented: $showingConfirmation) {
             Button("取消", role: .cancel) {}
             Button("确定", role: .destructive) {
@@ -57,8 +53,17 @@ struct PrintControlView: View {
     
     private func sendCommand(_ command: String) {
         print("Debug: PrintControlView - Sending command: \(command)")
-        print("Debug: PrintControlView - WebSocket connected: \(webSocketManager.isConnected)")
-        print("Debug: PrintControlView - Current status: \(String(describing: printStatus))")
+        
+        // 构建符合 SDCP 协议的命令数据
+        var commandData: [String: Any] = [:]
+        
+        // 根据不同命令添加所需参数
+        switch command {
+        case "pause", "resume", "stop":
+            commandData["TaskID"] = printInfo?.taskId ?? ""
+        default:
+            break
+        }
         
         let message: [String: Any] = [
             "Topic": "sdcp/request/\(device.id)",
@@ -68,7 +73,7 @@ struct PrintControlView: View {
                 "TimeStamp": Int(Date().timeIntervalSince1970),
                 "From": 3,
                 "Cmd": getCommandCode(command),
-                "Data": [:] as [String: Any]
+                "Data": commandData
             ]
         ]
         
@@ -76,21 +81,16 @@ struct PrintControlView: View {
            let jsonString = String(data: data, encoding: .utf8) {
             print("Debug: PrintControlView - Command JSON: \(jsonString)")
             webSocketManager.sendCommand(jsonString)
-        } else {
-            print("Error: PrintControlView - Failed to serialize command")
         }
     }
     
     private func getCommandCode(_ command: String) -> Int {
         switch command {
-            case "pause": return 0x82   // 暂停打印
-            case "resume": return 0x83  // 继续打印
-            case "stop": return 0x84    // 停止打印
-            case "home": return 0x85    // 回零操作
-            case "StartPrint": return 0x81  // 开始打印
-            case "exposureTest": return 0x86  // 曝光测试
-            case "deviceTest": return 0x87   // 设备自检
-            default: return 0
+        case "pause": return 129   // 暂停打印
+        case "resume": return 130  // 继续打印
+        case "stop": return 131    // 停止打印
+        case "StartPrint": return 128  // 开始打印
+        default: return 0
         }
     }
     
@@ -98,123 +98,5 @@ struct PrintControlView: View {
         confirmationMessage = message
         confirmationAction = action
         showingConfirmation = true
-    }
-}
-
-// MARK: - 子视图
-private struct PrintControlButtons: View {
-    let printInfo: PrintInfo
-    let onCommand: (String) -> Void
-    let confirmAction: (String, @escaping () -> Void) -> Void
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            // 主要控制按钮
-            HStack {
-                // 暂停/继续按钮
-                if printInfo.status == .exposuring || 
-                   printInfo.status == .dropping ||
-                   printInfo.status == .lifting {
-                    ControlButton(title: "暂停", icon: "pause.fill") {
-                        confirmAction("确定要暂停打印吗？") {
-                            onCommand("pause")
-                        }
-                    }
-                } else if printInfo.status == .paused {
-                    ControlButton(title: "继续", icon: "play.fill") {
-                        onCommand("resume")
-                    }
-                }
-                
-                // 停止按钮
-                if printInfo.status != .idle &&
-                   printInfo.status != .stopped &&
-                   printInfo.status != .complete {
-                    ControlButton(title: "停止", icon: "stop.fill") {
-                        confirmAction("确定要停止打印吗？此操作不可恢复。") {
-                            onCommand("stop")
-                        }
-                    }
-                    .tint(.red)
-                }
-            }
-            
-            // 辅助控制按钮
-            HStack {
-                // 回零按钮
-                if printInfo.status == .idle ||
-                   printInfo.status == .stopped ||
-                   printInfo.status == .complete {
-                    ControlButton(title: "回零", icon: "arrow.down.to.line") {
-                        confirmAction("确定要执行回零操作吗？") {
-                            onCommand("home")
-                        }
-                    }
-                }
-            }
-            
-            // 调试按钮
-            #if DEBUG
-            if printInfo.status == .idle ||
-               printInfo.status == .stopped ||
-               printInfo.status == .complete {
-                Button(action: { onCommand("StartPrint") }) {
-                    Label("开始测试打印", systemImage: "play.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.blue)
-                
-                Button(action: { onCommand("exposureTest") }) {
-                    Label("曝光测试", systemImage: "rays")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                
-                Button(action: { onCommand("deviceTest") }) {
-                    Label("设备自检", systemImage: "gearshape.2")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.green)
-            }
-            #endif
-        }
-    }
-}
-
-private struct NonPrintingView: View {
-    let onCommand: (String) -> Void
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("未在打印")
-                .foregroundColor(.secondary)
-            
-            #if DEBUG
-            // 调试按钮
-            Button(action: { onCommand("StartPrint") }) {
-                Label("开始测试打印", systemImage: "play.circle.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(.blue)
-            
-            Button(action: { onCommand("exposureTest") }) {
-                Label("曝光测试", systemImage: "rays")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            
-            Button(action: { onCommand("deviceTest") }) {
-                Label("设备自检", systemImage: "gearshape.2")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(.green)
-            #endif
-        }
     }
 } 

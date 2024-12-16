@@ -13,31 +13,84 @@ class DeviceManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
     private let connectedDevicesKey = "ConnectedDevices"
+    private let deviceStatusesKey = "DeviceStatuses"
     
     private init() {
-        // 从 UserDefaults 加载已保存的设备
         loadConnectedDevices()
+        loadDeviceStatuses()
         
         // 监听设备状态更新
         WebSocketManager.shared.statusPublisher
-            .sink { [weak self] status in
-                guard let deviceId = status.printInfo?.taskId else { return }
-                self?.deviceStatuses[deviceId] = status
+            .sink { [weak self] (status: PrintStatus) in
+                guard let self = self,
+                      let deviceId = WebSocketManager.shared.deviceId else { return }
+                self.deviceStatuses[deviceId] = status
+                self.saveDeviceStatuses()
             }
             .store(in: &cancellables)
+    }
+    
+    func updateDeviceStatus(deviceId: String, status: PrintStatus) {
+        deviceStatuses[deviceId] = status
+        saveDeviceStatuses()
+    }
+    
+    private func loadDeviceStatuses() {
+        if let data = userDefaults.data(forKey: deviceStatusesKey),
+           let statuses = try? JSONDecoder().decode([String: PrintStatus].self, from: data) {
+            deviceStatuses = statuses
+        }
+    }
+    
+    private func saveDeviceStatuses() {
+        if let data = try? JSONEncoder().encode(deviceStatuses) {
+            userDefaults.set(data, forKey: deviceStatusesKey)
+        }
+    }
+    
+    func reconnectDevice(_ device: PrinterDevice, completion: @escaping (Bool) -> Void = { _ in }) {
+        connectingDevices.insert(device.id)
         
-        // 监听WebSocket连接状态
-        WebSocketManager.shared.connectionStatusPublisher
-            .sink { [weak self] status in
-                guard let self = self else { return }
-                switch status {
-                case .connected(let deviceId):
-                    self.connectedWebSockets.insert(deviceId)
-                case .disconnected(let deviceId):
-                    self.connectedWebSockets.remove(deviceId)
+        // 检查设备状态
+        if deviceStatuses[device.id] != nil {
+            connectedWebSockets.insert(device.id)
+            
+            // 发送获取状态命令
+            let message: [String: Any] = [
+                "Topic": "sdcp/request/\(device.id)",
+                "Data": [
+                    "MainboardID": device.id,
+                    "RequestID": UUID().uuidString,
+                    "TimeStamp": Int(Date().timeIntervalSince1970),
+                    "From": 3,
+                    "Cmd": 385,  // 获取打印机状态命令
+                    "Data": [:]
+                ]
+            ]
+            
+            if let data = try? JSONSerialization.data(withJSONObject: message),
+               let jsonString = String(data: data, encoding: .utf8) {
+                WebSocketManager.shared.sendCommand(jsonString)
+            }
+            
+            completion(true)
+            connectingDevices.remove(device.id)
+            return
+        }
+        
+        // 尝试重新连接
+        WebSocketManager.shared.connect(to: device) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.connectingDevices.remove(device.id)
+                switch result {
+                case .success:
+                    self?.connectedWebSockets.insert(device.id)
+                    completion(true)
+                case .failure:
+                    completion(false)
                 }
             }
-            .store(in: &cancellables)
+        }
     }
     
     func connectDevice(_ device: PrinterDevice) {
@@ -48,31 +101,10 @@ class DeviceManager: ObservableObject {
     }
     
     func disconnectDevice(_ device: PrinterDevice) {
+        // 不要在断开连接时删除状态，只移除连接标记
         connectedWebSockets.remove(device.id)
         connectedDevices.removeAll { $0.id == device.id }
-        deviceStatuses.removeValue(forKey: device.id)
         saveConnectedDevices()
-    }
-    
-    func reconnectDevice(_ device: PrinterDevice, completion: @escaping (Bool) -> Void = { _ in }) {
-        // 添加到连接中状态
-        connectingDevices.insert(device.id)
-        
-        // 尝试重新连接
-        WebSocketManager.shared.connect(to: device) { [weak self] result in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { // 缩短延迟时间
-                self?.connectingDevices.remove(device.id)
-                
-                switch result {
-                case .success:
-                    print("Debug: Successfully reconnected to device")
-                    completion(true)
-                case .failure(let error):
-                    print("Debug: Reconnection failed - \(error)")
-                    completion(false)
-                }
-            }
-        }
     }
     
     /// 检查设备是否已连接

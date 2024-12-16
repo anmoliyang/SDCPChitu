@@ -9,6 +9,8 @@ struct PrintStatus: Codable, Equatable {
         case fileTransferring = 2  // 文件传输中
         case exposureTesting = 3   // 曝光测试
         case devicesTesting = 4    // 设备自检
+        case paused = 5        // 已暂停
+        case stopped = 6       // 已停止
         
         var description: String {
             switch self {
@@ -17,6 +19,8 @@ struct PrintStatus: Codable, Equatable {
             case .fileTransferring: return "文件传输中"
             case .exposureTesting: return "曝光测试"
             case .devicesTesting: return "设备自检"
+            case .paused: return "已暂停"
+            case .stopped: return "已停止"
             }
         }
     }
@@ -42,116 +46,72 @@ struct PrintStatus: Codable, Equatable {
             case .dropping: return "下降中"
             case .exposuring: return "曝光中"
             case .lifting: return "抬升中"
-            case .pausing: return "暂停中"
+            case .pausing: return "正在暂停"
             case .paused: return "已暂停"
-            case .stopping: return "停止中"
+            case .stopping: return "正在停止"
             case .stopped: return "已停止"
-            case .complete: return "已完成"
+            case .complete: return "打印完成"
             case .fileChecking: return "文件检测中"
             }
         }
     }
     
-    /// 当前机器状态
-    let currentStatus: MachineStatus
-    /// 前一个状态
-    let previousStatus: MachineStatus
-    /// 曝光时间(ms)
-    let printScreenTime: Int
-    /// 离型次数
-    let releaseFilmCount: Int
-    /// UVLED温度
-    let uvledTemperature: Double
-    /// 延时摄影启用状态
-    let timeLapseEnabled: Bool
-    /// 打印仓温度
-    let boxTemperature: Double
-    /// 打印仓目标温度
-    let boxTargetTemperature: Double
-    /// 打印信息
-    let printInfo: PrintInfo?
-    
-    private enum CodingKeys: String, CodingKey {
-        case status = "Status"
-        case currentStatus = "CurrentStatus"
-        case previousStatus = "PreviousStatus"
-        case printScreenTime = "PrintScreen"
-        case releaseFilmCount = "ReleaseFilm"
-        case uvledTemperature = "TempOfUVLED"
-        case timeLapseEnabled = "TimeLapseStatus"
-        case boxTemperature = "TempOfBox"
-        case boxTargetTemperature = "TempTargetBox"
-        case printInfo = "PrintInfo"
-    }
-    
-    // MARK: - Encodable
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
+    /// 设备自检状态
+    struct DevicesStatus: Codable, Equatable {
+        let tempSensorStatusOfUVLED: Int  // UVLED温度传感器状态,0未接入，1正常，2异常
+        let lcdStatus: Int                // 曝光屏连接状态，0断开，1连接
+        let sgStatus: Int                 // 应变片状态，0未接入，1正常 2校准失败
+        let zMotorStatus: Int             // Z轴电机连接状态，0断开，1连接
+        let rotateMotorStatus: Int        // 旋转轴电机连接状态，0断开，1连接
+        let releaseFilmState: Int         // 离型膜状态，0异常，1正常
+        let xMotorStatus: Int             // X轴电机连接状态，0断开，1连接
         
-        try container.encode(currentStatus.rawValue, forKey: .currentStatus)
-        try container.encode(previousStatus.rawValue, forKey: .previousStatus)
-        try container.encode(printScreenTime, forKey: .printScreenTime)
-        try container.encode(releaseFilmCount, forKey: .releaseFilmCount)
-        try container.encode(uvledTemperature, forKey: .uvledTemperature)
-        try container.encode(timeLapseEnabled ? 1 : 0, forKey: .timeLapseEnabled)
-        try container.encode(boxTemperature, forKey: .boxTemperature)
-        try container.encode(boxTargetTemperature, forKey: .boxTargetTemperature)
-        try container.encodeIfPresent(printInfo, forKey: .printInfo)
-    }
-    
-    // MARK: - Decodable
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        // 解析当前状态（可能是数组或单个值）
-        if let statusArray = try? container.decode([Int].self, forKey: .currentStatus) {
-            currentStatus = MachineStatus(rawValue: statusArray[0]) ?? .idle
-        } else if let statusValue = try? container.decode(Int.self, forKey: .currentStatus) {
-            currentStatus = MachineStatus(rawValue: statusValue) ?? .idle
-        } else {
-            currentStatus = .idle
+        // 实现 Equatable
+        static func == (lhs: DevicesStatus, rhs: DevicesStatus) -> Bool {
+            return lhs.tempSensorStatusOfUVLED == rhs.tempSensorStatusOfUVLED &&
+                   lhs.lcdStatus == rhs.lcdStatus &&
+                   lhs.sgStatus == rhs.sgStatus &&
+                   lhs.zMotorStatus == rhs.zMotorStatus &&
+                   lhs.rotateMotorStatus == rhs.rotateMotorStatus &&
+                   lhs.releaseFilmState == rhs.releaseFilmState &&
+                   lhs.xMotorStatus == rhs.xMotorStatus
         }
-        
-        previousStatus = try container.decode(MachineStatus.self, forKey: .previousStatus)
-        printScreenTime = try container.decode(Int.self, forKey: .printScreenTime)
-        releaseFilmCount = try container.decode(Int.self, forKey: .releaseFilmCount)
-        uvledTemperature = try container.decode(Double.self, forKey: .uvledTemperature)
-        timeLapseEnabled = try container.decode(Int.self, forKey: .timeLapseEnabled) == 1
-        boxTemperature = try container.decode(Double.self, forKey: .boxTemperature)
-        boxTargetTemperature = try container.decode(Double.self, forKey: .boxTargetTemperature)
-        printInfo = try container.decodeIfPresent(PrintInfo.self, forKey: .printInfo)
     }
     
-    // MARK: - 初始化方法
+    let currentStatus: MachineStatus      // 当前机器状态
+    let previousStatus: MachineStatus     // 上一次机器状态
+    let printScreenTime: Int              // 曝光屏使用时间（s）
+    let releaseFilmCount: Int             // 离型膜次数
+    let uvledTemperature: Double          // 当前UVLED温度（℃）
+    let timeLapseEnabled: Bool            // 延时摄影开关状态
+    let boxTemperature: Double            // 箱体当前温度（℃）
+    let boxTargetTemperature: Double      // 箱体目标温度（℃）
+    let printInfo: PrintInfo?             // 打印信息
+    let devicesStatus: DevicesStatus?     // 设备自检状态
     
-    init(currentStatus: MachineStatus,
-         previousStatus: MachineStatus,
-         printScreenTime: Int,
-         releaseFilmCount: Int,
-         uvledTemperature: Double,
-         timeLapseEnabled: Bool,
-         boxTemperature: Double,
-         boxTargetTemperature: Double,
-         printInfo: PrintInfo?) {
-        self.currentStatus = currentStatus
-        self.previousStatus = previousStatus
-        self.printScreenTime = printScreenTime
-        self.releaseFilmCount = releaseFilmCount
-        self.uvledTemperature = uvledTemperature
-        self.timeLapseEnabled = timeLapseEnabled
-        self.boxTemperature = boxTemperature
-        self.boxTargetTemperature = boxTargetTemperature
-        self.printInfo = printInfo
+    var isPrinting: Bool {
+        currentStatus == .printing
     }
-}
-
-// MARK: - 辅助方法
-extension PrintStatus {
-    var isIdle: Bool { currentStatus == .idle }
-    var isPrinting: Bool { currentStatus == .printing }
-    var isFileTransferring: Bool { currentStatus == .fileTransferring }
-    var isExposureTesting: Bool { currentStatus == .exposureTesting }
-    var isDevicesTesting: Bool { currentStatus == .devicesTesting }
+    
+    var isExposureTesting: Bool {
+        currentStatus == .exposureTesting
+    }
+    
+    var isDevicesTesting: Bool {
+        currentStatus == .devicesTesting
+    }
+    
+    // 实现 Equatable
+    static func == (lhs: PrintStatus, rhs: PrintStatus) -> Bool {
+        return lhs.currentStatus == rhs.currentStatus &&
+               lhs.previousStatus == rhs.previousStatus &&
+               lhs.printScreenTime == rhs.printScreenTime &&
+               lhs.releaseFilmCount == rhs.releaseFilmCount &&
+               lhs.uvledTemperature == rhs.uvledTemperature &&
+               lhs.timeLapseEnabled == rhs.timeLapseEnabled &&
+               lhs.boxTemperature == rhs.boxTemperature &&
+               lhs.boxTargetTemperature == rhs.boxTargetTemperature &&
+               lhs.printInfo == rhs.printInfo &&
+               lhs.devicesStatus == rhs.devicesStatus
+    }
 } 

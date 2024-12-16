@@ -9,7 +9,8 @@ struct PrintProgressView: View {
     }
     
     private var timeRemaining: String {
-        let seconds = printInfo.remainingTicks / 1000
+        let remainingTicks = printInfo.totalTicks - printInfo.currentTicks
+        let seconds = remainingTicks / 1000
         let hours = seconds / 3600
         let minutes = (seconds % 3600) / 60
         return String(format: "%d小时%d分钟", hours, minutes)
@@ -41,21 +42,49 @@ struct PrintProgressView: View {
 }
 
 #Preview {
-    let previewPrintInfo = PrintInfo(
-        status: .exposuring,
-        currentLayer: 50,
-        totalLayer: 100,
-        currentTicks: 3600000,
-        totalTicks: 7200000,
-        filename: "test.ctb",
-        errorNumber: 0,
-        taskId: "TEST001",
-        remainingTicks: 3600000,
-        printSpeed: 1.0,
-        zHeight: 50.0
-    )
+    // 创建预览用的 PrintInfo
+    let printInfoJson: [String: Any] = [
+        "Status": 3,  // SDCP_PRINT_STATUS_EXPOSURING
+        "CurrentLayer": 50,
+        "TotalLayer": 100,
+        "CurrentTicks": 3600000,
+        "TotalTicks": 7200000,
+        "Filename": "test.ctb",
+        "ErrorNumber": 0,
+        "TaskId": "TEST001"
+    ]
+    
+    // 创建预览用的 PrintStatus
+    let statusJson: [String: Any] = [
+        "CurrentStatus": [1],  // [SDCP_MACHINE_STATUS_PRINTING]
+        "PreviousStatus": 0,   // SDCP_MACHINE_STATUS_IDLE
+        "PrintScreen": 8000,
+        "ReleaseFilm": 0,
+        "TempOfUVLED": 25.0,
+        "TimeLapseStatus": 1,
+        "TempOfBox": 25.0,
+        "TempTargetBox": 28.0,
+        "PrintInfo": [
+            "Status": 3,
+            "CurrentLayer": 50,
+            "TotalLayer": 100,
+            "CurrentTicks": 3600000,
+            "TotalTicks": 7200000,
+            "Filename": "test.ctb",
+            "ErrorNumber": 0,
+            "TaskId": "TEST001"
+        ]
+    ]
+    
+    // 使用 try? 处理可能的解码错误
+    let previewPrintInfo = try? JSONDecoder().decode(PrintInfo.self, 
+        from: JSONSerialization.data(withJSONObject: printInfoJson))
+    let previewStatus = try? JSONDecoder().decode(PrintStatus.self, 
+        from: JSONSerialization.data(withJSONObject: statusJson))
     
     return List {
-        PrintProgressView(printInfo: previewPrintInfo)
+        if let status = previewStatus, let printInfo = previewPrintInfo {
+            DeviceStatusView(status: status, printInfo: printInfo)
+        }
     }
 } 
